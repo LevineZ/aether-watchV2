@@ -29,7 +29,7 @@ const spec = computed(() => {
     default:
       return {
         title: t.value.legend,
-        bar: 'linear-gradient(90deg, rgba(90, 200, 230, 0.12), #5ac8e6)',
+        bar: 'linear-gradient(90deg, #142a6b, #278cd9, #40d1b8, #f2db47, #db4729)',
         ticks: ['0', '8', '16', '24 m/s'],
       }
   }
