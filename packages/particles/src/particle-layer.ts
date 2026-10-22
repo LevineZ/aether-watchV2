@@ -15,7 +15,8 @@ import {
 } from './shaders'
 
 export type PoolId = 'wind' | 'currents'
-export type OverlayMode = 'none' | 'temp' | 'precip'
+/** wind = |UV| speed curtain from the same pack; never a second (temp) pack. */
+export type OverlayMode = 'none' | 'wind' | 'temp' | 'precip'
 export type FieldStyle = 'wind-fog' | 'currents'
 
 type GL = WebGL2RenderingContext
@@ -122,14 +123,16 @@ function fieldToRgba(frame: FieldFrame): { data: Uint8Array; uMin: number; uMax:
     data[i4] = finite ? Math.max(0, Math.min(255, Math.round(((u - ur[0]) / uSpan) * 255))) : 0
     data[i4 + 1] = finite ? Math.max(0, Math.min(255, Math.round(((v - vr[0]) / vSpan) * 255))) : 0
     data[i4 + 2] = aliveByte
-    const s = frame.scalar
-      ? Number.isFinite(frame.scalar[i])
-        ? (frame.scalar[i] - sr[0]) / sSpan
-        : 0
-      : finite
-        ? Math.hypot(u, v) / 20
-        : 0
-    data[i4 + 3] = Math.max(0, Math.min(255, Math.round(s * 255)))
+    let packedScalar = 0
+    if (kind === 'wind') {
+      // Same-pack |UV| curtain. Do not read a temperature scalar under wind.
+      packedScalar = finite ? Math.hypot(u, v) / 24 : 0
+    } else if (frame.scalar) {
+      packedScalar = Number.isFinite(frame.scalar[i]) ? (frame.scalar[i] - sr[0]) / sSpan : 0
+    } else {
+      packedScalar = finite ? Math.hypot(u, v) / 20 : 0
+    }
+    data[i4 + 3] = Math.max(0, Math.min(255, Math.round(packedScalar * 255)))
   }
   if (oceanMask) {
     let maxAlive = 0
@@ -144,7 +147,7 @@ function fieldToRgba(frame: FieldFrame): { data: Uint8Array; uMin: number; uMax:
   return { data, uMin: ur[0], uMax: ur[1], vMin: vr[0], vMax: vr[1] }
 }
 
-/** 关收 tip 默认平流 0.005。风 √(U²+V²)×0.50；洋流 √(U²+V²)×0.35–0.45。 */
+/** 关收 tip 默认平流 0.005。风 √(U²+V²)×0.45；洋流 √(U²+V²)×0.35–0.45。 */
 export const ADVECT_STEP = 0.0025
 export const KIND_LOOK: Record<
   FieldKind,
@@ -163,13 +166,13 @@ export const KIND_LOOK: Record<
 > = {
   wind: {
     style: 'wind-fog',
-    overlay: 'none',
-    speed: 1.0,
-    drop: 0.0016,
-    size: 1.85,
-    color: [0.353, 0.784, 0.902, 0.32],
-    ribbonDeg: 3.6,
-    ribbonPx: 2.2,
+    overlay: 'wind',
+    speed: 0.45,
+    drop: 0.0013,
+    size: 1.1,
+    color: [0.91, 0.957, 1.0, 0.3],
+    ribbonDeg: 5.6,
+    ribbonPx: 1.15,
     uvScale: 1,
     pool: 'wind',
   },
@@ -219,6 +222,7 @@ export type ParticleLayerOptions = {
  * MapLibre CustomLayer：GPU 粒子。
  * - 粒子 UV 只活在 FieldFrame.bbox 内；每帧用当前相机 defaultProjectionData 重绑，禁止缓存 world→UV。
  * - 空闲 peak≈40 万；拖动停平流、计数不砍；松手 peak + 重投。
+ * - wind：同包 |UV| 色幕 + 近白细丝；禁止再叠温度包。
  * - temp/precip：只画 scalar；粒子 LOD=paused / count=0，禁止 UV 平流。
  */
 export class ParticleLayer {
@@ -405,7 +409,8 @@ export class ParticleLayer {
     const lonSpan = Math.abs(this.bbox[2] - this.bbox[0])
     this.wrap = lonSpan > 350 ? 1 : 0
     if (this.wrap) {
-      this.ribbonDeg = look.ribbonDeg * (kind === 'ocean' ? 5.2 : 6.2)
+      // Ocean freeze c794d1b length. Wind: modest wrap boost so thinner strands still read long.
+      this.ribbonDeg = look.ribbonDeg * (kind === 'ocean' ? 5.2 : 4.8)
     }
     if (kind === 'temp' || kind === 'precip') {
       this.advecting = false
@@ -522,6 +527,7 @@ export class ParticleLayer {
 
     if (this.vao) g.bindVertexArray(this.vao)
 
+    // Stack: basemap (under this custom layer) → smooth curtain → strands → labels/chrome.
     if (this.overlay !== 'none' && this.scalarProg) {
       g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
       g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
@@ -534,7 +540,8 @@ export class ParticleLayer {
       g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
       g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
       this.drawRibbons(g, matrix, count)
-      const heads = this.kind === 'ocean' ? 0.04 : this.wrap ? 0 : 0.025
+      // Wind: strands only — ban short cyan point grid. Ocean freeze keeps sparse heads.
+      const heads = this.kind === 'ocean' ? 0.04 : 0
       this.drawParticles(g, matrix, Math.floor(count * heads))
     }
 
@@ -725,8 +732,9 @@ export class ParticleLayer {
 
   private drawScalar(g: GL, matrix: Float32Array | number[]) {
     if (!this.scalarProg) return
-    const lonSeg = this.wrap ? 36 : 8
-    const latSeg = this.wrap ? 16 : 6
+    const lonSeg = this.wrap ? 96 : 18
+    const latSeg = this.wrap ? 48 : 12
+    const mode = this.overlay === 'precip' ? 1 : this.overlay === 'wind' ? 2 : 0
     g.enable(g.BLEND)
     g.blendFunc(g.SRC_ALPHA, g.ONE_MINUS_SRC_ALPHA)
     g.disable(g.DEPTH_TEST)
@@ -738,8 +746,9 @@ export class ParticleLayer {
     this.bindProjection(g, this.scalarProg, matrix)
     this.bindField(g, this.scalarProg)
     g.uniform2f(g.getUniformLocation(this.scalarProg, 'u_grid'), lonSeg, latSeg)
-    g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_mode'), this.overlay === 'precip' ? 1 : 0)
+    g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_mode'), mode)
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_hatch'), 0)
+    g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_wrap'), this.wrap)
     g.drawArrays(g.TRIANGLES, 0, lonSeg * latSeg * 6)
   }
 }
