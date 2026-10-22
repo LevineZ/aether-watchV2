@@ -209,7 +209,7 @@ void main() {
   if (d > 1.0) discard;
   float core = smoothstep(1.0, 0.18, d);
   float fog = smoothstep(1.0, 0.0, d);
-  float alpha = mix(fog * 0.72, core * 0.8, u_style);
+  float alpha = mix(fog * 0.88, core * 0.8, u_style);
   alpha *= smoothstep(0.0, 0.045, v_edge);
   fragColor = vec4(u_color.rgb, u_color.a * alpha);
 }
@@ -263,6 +263,7 @@ export const SCALAR_FS = `#version 300 es
 precision highp float;
 uniform sampler2D u_wind;
 uniform float u_mode;
+uniform float u_hatch;
 in vec2 v_uv;
 out vec4 fragColor;
 void main() {
@@ -272,17 +273,21 @@ void main() {
     vec3 cold = vec3(0.22, 0.42, 0.72);
     vec3 mid = vec3(0.78, 0.52, 0.36);
     vec3 cream = vec3(0.93, 0.84, 0.70);
-    vec3 c = mix(cold, mid, smoothstep(0.05, 0.55, t));
-    c = mix(c, cream, smoothstep(0.55, 0.95, t));
-    float a = 0.46 * smoothstep(0.02, 0.88, t);
+    vec3 c = mix(cold, mid, smoothstep(0.04, 0.52, t));
+    c = mix(c, cream, smoothstep(0.52, 0.96, t));
+    float a = 0.54 * smoothstep(0.01, 0.9, t);
     fragColor = vec4(c, a);
   } else {
-    if (t < 0.08) discard;
-    float puddle = smoothstep(0.08, 0.72, t);
-    float hatch = abs(fract((v_uv.x + v_uv.y) * 42.0) - 0.5);
-    float line = smoothstep(0.22, 0.08, hatch);
-    float a = mix(puddle * 0.42, line * puddle * 0.70, 0.55);
-    vec3 c = vec3(0.42, 0.74, 0.88);
+    if (t < 0.07) discard;
+    float puddle = smoothstep(0.07, 0.68, t);
+    float blob = puddle * puddle * (3.0 - 2.0 * puddle);
+    float a = blob * 0.58;
+    if (u_hatch > 0.5) {
+      float hatch = abs(fract((v_uv.x + v_uv.y) * 42.0) - 0.5);
+      float line = smoothstep(0.22, 0.08, hatch);
+      a = mix(a, line * puddle * 0.7, 0.55);
+    }
+    vec3 c = vec3(0.38, 0.70, 0.86);
     fragColor = vec4(c, a);
   }
 }

@@ -16,7 +16,9 @@ watch(
     if (!p) return
     p.setSpeed(ui.strength)
     p.setDensity(ui.density)
-    p.setSize(ui.pointSize * (ui.kind === 'ocean' ? 3.1 : ui.kind === 'wind' ? 1.7 : 1.4))
+    if (ui.kind !== 'temp' && ui.kind !== 'precip') {
+      p.setSize(ui.pointSize * (ui.kind === 'ocean' ? 3.1 : 1.9))
+    }
     if (p.getLod() !== 'paused') p.setLod('peak')
   },
 )

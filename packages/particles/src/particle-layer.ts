@@ -151,11 +151,11 @@ export const KIND_LOOK: Record<
     style: 'wind-fog',
     overlay: 'none',
     speed: 1.0,
-    drop: 0.0024,
-    size: 1.7,
-    color: [0.353, 0.784, 0.902, 0.26],
-    ribbonDeg: 2.15,
-    ribbonPx: 1.25,
+    drop: 0.0018,
+    size: 1.9,
+    color: [0.353, 0.784, 0.902, 0.48],
+    ribbonDeg: 3.35,
+    ribbonPx: 2.45,
     uvScale: 1,
     pool: 'wind',
   },
@@ -205,7 +205,7 @@ export type ParticleLayerOptions = {
  * MapLibre CustomLayer：GPU 粒子。
  * - 粒子 UV 只活在 FieldFrame.bbox 内；每帧用当前相机 defaultProjectionData 重绑，禁止缓存 world→UV。
  * - 空闲 peak≈40 万；拖动停平流、计数不砍；松手 peak + 重投。
- * - temp/precip：scalar 幕 + 极淡近静止雾；禁 UV 乱窜。
+ * - temp/precip：只画 scalar；粒子 LOD=paused / count=0，禁止 UV 平流。
  */
 export class ParticleLayer {
   id: string
@@ -328,6 +328,12 @@ export class ParticleLayer {
   }
 
   setLod(level: LodLevel) {
+    if (this.kind === 'temp' || this.kind === 'precip') {
+      this.advecting = false
+      this.lod = 'paused'
+      this.map?.triggerRepaint()
+      return
+    }
     if (level === 'paused') {
       this.advecting = false
       this.map?.triggerRepaint()
@@ -352,6 +358,12 @@ export class ParticleLayer {
   }
 
   resume() {
+    if (this.kind === 'temp' || this.kind === 'precip') {
+      this.advecting = false
+      this.lod = 'paused'
+      this.map?.triggerRepaint()
+      return
+    }
     this.advecting = true
     this.lod = 'peak'
     this.pendingReseed = true
@@ -380,6 +392,13 @@ export class ParticleLayer {
       this.wrap = Math.abs(this.bbox[2] - this.bbox[0]) > 350 ? 1 : 0
     } else {
       this.wrap = 0
+    }
+    if (kind === 'temp' || kind === 'precip') {
+      this.advecting = false
+      this.lod = 'paused'
+    } else if (this.lod === 'paused') {
+      this.advecting = true
+      this.lod = 'peak'
     }
     this.map?.triggerRepaint()
   }
@@ -411,12 +430,11 @@ export class ParticleLayer {
   }
 
   showParticles(): boolean {
-    return true
+    return this.kind !== 'temp' && this.kind !== 'precip'
   }
 
   drawCount(): number {
-    const d = Math.max(0.2, Math.min(1, this.density))
-    if (this.kind === 'temp' || this.kind === 'precip') return Math.floor(10_000 * d)
+    if (this.kind === 'temp' || this.kind === 'precip') return 0
     return visualCount({
       ocean: this.kind === 'ocean',
       regionalWindow: this.wrap < 0.5,
@@ -502,7 +520,7 @@ export class ParticleLayer {
       g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
       g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
       this.drawRibbons(g, matrix, count)
-      this.drawParticles(g, matrix, Math.floor(count * (this.kind === 'ocean' ? 0.08 : this.kind === 'wind' ? 0.12 : 0.06)))
+      this.drawParticles(g, matrix, Math.floor(count * (this.kind === 'ocean' ? 0.08 : 0.06)))
     }
 
     if (prevVao) g.bindVertexArray(prevVao)
@@ -698,6 +716,7 @@ export class ParticleLayer {
     this.bindProjection(g, this.scalarProg, matrix)
     this.bindField(g, this.scalarProg)
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_mode'), this.overlay === 'precip' ? 1 : 0)
+    g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_hatch'), 0)
     g.drawArrays(g.TRIANGLE_STRIP, 0, 4)
   }
 }
