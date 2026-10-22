@@ -77,7 +77,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="map-wrap">
     <div class="map-host" ref="root" />
-    <div v-if="ui.kind === 'ocean'" class="corner" aria-hidden="true">
+    <div v-if="ui.page === 'regional' && ui.kind === 'ocean'" class="corner" aria-hidden="true">
       <span class="attr">{{ t.basemapAttr }}</span>
     </div>
     <div v-if="field.status === 'loading'" class="toast glass">{{ t.loading }}</div>

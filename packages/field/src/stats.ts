@@ -29,6 +29,8 @@ export function fieldStats(frame: FieldFrame): FieldStats {
 }
 
 export function scalarRange(frame: FieldFrame): [number, number] {
+  const kind = frame.kind
+  if (kind === 'temp') return [-20, 40]
   if (!frame.scalar) return [0, 1]
   let min = Infinity
   let max = -Infinity
@@ -40,6 +42,10 @@ export function scalarRange(frame: FieldFrame): [number, number] {
     if (v > max) max = v
   }
   if (!Number.isFinite(min)) return [0, 1]
+  if (kind === 'precip') {
+    if (max <= 0) return [0, 1]
+    return [0, max]
+  }
   if (min === max) return [min - 1, max + 1]
   return [min, max]
 }

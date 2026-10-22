@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import {
   applyMaskContract,
+  assertGlobalPack,
   inferKind,
   loadDemo,
   parseNcFile,
@@ -32,15 +33,31 @@ export const useFieldStore = defineStore('field', {
     ncError: '' as string,
     uploaded: false,
     pageSeq: 0,
+    /** 页:要素 → 缺包 / 404，灰芯片，禁止回退区域包。 */
+    missing: {} as Record<string, boolean>,
   }),
   getters: {
     badgeAlwaysDemo: () => true,
     particleTarget: (s) => (s.frame ? 400_000 : 0),
   },
   actions: {
+    missKey(page: PageId, kind: FieldKind) {
+      return `${page}:${kind}`
+    },
+    isKindMissing(page: PageId, kind: FieldKind) {
+      if (page === 'about') return true
+      if (!packForKind(page, kind)) return true
+      return !!this.missing[this.missKey(page, kind)]
+    },
+    markMissing(page: PageId, kind: FieldKind, yes: boolean) {
+      this.missing[this.missKey(page, kind)] = yes
+    },
     bindToGpu(frame: FieldFrame | null) {
       const ui = useUiStore()
       if (frame) applyMaskContract(frame)
+      if (frame && ui.page === 'global') {
+        assertGlobalPack(String(this.activePack), frame)
+      }
       this.frame = frame
       this.stats = frame ? fieldStats(frame) : null
       if (frame) {
@@ -106,6 +123,13 @@ export const useFieldStore = defineStore('field', {
       const kind = PAGE_DEFAULT_KIND[page]
       ui.setKind(kind)
       const pack = packForKind(page, kind)
+      if (!pack) {
+        this.markMissing(page, kind, true)
+        this.status = 'error'
+        this.error = '来源缺失'
+        this.bindToGpu(null)
+        return
+      }
       this.status = 'loading'
       this.error = ''
       try {
@@ -113,23 +137,11 @@ export const useFieldStore = defineStore('field', {
         if (seq !== this.pageSeq) return
         this.activePack = pack
         this.status = 'ready'
+        this.markMissing(page, kind, false)
         this.bindToGpu(frame)
       } catch (e) {
-        if (kind === 'ocean') {
-          try {
-            const fallback = packForKind(page, 'wind')
-            const frame = await this.loadIntoCache(fallback)
-            if (seq !== this.pageSeq) return
-            ui.setKind('wind')
-            this.activePack = fallback
-            this.status = 'ready'
-            this.bindToGpu(frame)
-            return
-          } catch {
-            /* fall through */
-          }
-        }
         if (seq !== this.pageSeq) return
+        this.markMissing(page, kind, true)
         this.status = 'error'
         this.error = e instanceof Error ? e.message : String(e)
       }
@@ -137,22 +149,42 @@ export const useFieldStore = defineStore('field', {
     async selectKind(kind: FieldKind) {
       const ui = useUiStore()
       if (ui.page === 'about') return
-      ui.setKind(kind)
+      const prev = ui.kind
       const pack = packForKind(ui.page, kind)
+      if (!pack) {
+        this.markMissing(ui.page, kind, true)
+        return
+      }
+      ui.setKind(kind)
       try {
         await this.ensurePack(pack)
+        this.markMissing(ui.page, kind, false)
       } catch (e) {
-        if (kind === 'ocean') {
-          ui.setKind('wind')
-          await this.ensurePack(packForKind(ui.page, 'wind'))
-          return
+        this.markMissing(ui.page, kind, true)
+        ui.setKind(prev)
+        const keep = packForKind(ui.page, prev)
+        if (keep && this.cache[keep]) {
+          this.activePack = keep
+          this.status = 'ready'
+          this.bindToGpu(this.cache[keep])
+        } else {
+          this.error = e instanceof Error ? e.message : String(e)
+          this.status = 'error'
         }
-        this.error = e instanceof Error ? e.message : String(e)
-        this.status = 'error'
       }
     },
     preloadIdle() {
-      const rest: DemoPackId[] = ['forecast/china', 'regional/currents', 'regional/temp', 'regional/precip']
+      const rest: DemoPackId[] = [
+        'global/ocean',
+        'global/temp',
+        'global/precip',
+        'china/wind',
+        'china/temp',
+        'china/precip',
+        'regional/currents',
+        'regional/temp',
+        'regional/precip',
+      ]
       const run = async () => {
         for (const id of rest) {
           if (!this.cache[id]) {

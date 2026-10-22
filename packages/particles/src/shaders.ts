@@ -83,6 +83,8 @@ ${define}
 uniform sampler2D u_particles;
 uniform sampler2D u_wind;
 uniform vec2 u_particle_res;
+uniform vec2 u_wind_min;
+uniform vec2 u_wind_max;
 uniform vec4 u_bbox;
 uniform float u_size;
 uniform float u_count;
@@ -104,7 +106,8 @@ void main() {
   vec2 uv = vec2(mod(id, u_particle_res.x) + 0.5, floor(id / u_particle_res.x) + 0.5) / u_particle_res;
   vec2 pos = decode(texture(u_particles, uv));
   vec4 wtex = texture(u_wind, pos);
-  v_speed = length(wtex.rg);
+  vec2 vel = mix(u_wind_min, u_wind_max, wtex.rg);
+  v_speed = length(vel);
   v_alive = wtex.b;
   float ex = u_wrap > 0.5 ? 1.0 : min(pos.x, 1.0 - pos.x);
   float ey = min(pos.y, 1.0 - pos.y);
@@ -116,7 +119,7 @@ void main() {
 `
 }
 
-/** 地理丝带：沿速度的两端用场 bbox→lonlat→mercator→projectTile；宽度在 NDC 挤出。 */
+/** 地理丝带：头尾与宽度都在 lon/lat 挤出再 projectTile。禁止 NDC 回投（地球投影会把丝带压成点）。 */
 export function makeRibbonVS(prelude: string, define: string): string {
   return `#version 300 es
 ${prelude}
@@ -131,10 +134,13 @@ uniform vec2 u_resolution;
 uniform float u_count;
 uniform float u_ribbon_deg;
 uniform float u_ribbon_px;
+uniform float u_size;
+uniform float u_min_trail;
 uniform float u_wrap;
 out float v_alive;
 out float v_along;
 out float v_edge;
+out float v_speed;
 ${MERCATOR}
 void main() {
   float vid = float(gl_VertexID);
@@ -145,6 +151,7 @@ void main() {
     v_alive = 0.0;
     v_along = 0.0;
     v_edge = 0.0;
+    v_speed = 0.0;
     return;
   }
   float along = (k == 2.0 || k == 3.0 || k == 5.0) ? 1.0 : 0.0;
@@ -156,33 +163,27 @@ void main() {
   float ex = u_wrap > 0.5 ? 1.0 : min(pos.x, 1.0 - pos.x);
   float ey = min(pos.y, 1.0 - pos.y);
   v_edge = min(ex, ey);
+  vec2 vel = mix(u_wind_min, u_wind_max, wtex.rg);
+  v_speed = length(vel);
   if (v_alive < 0.45) {
     gl_Position = vec4(2.0, 2.0, 0.0, 1.0);
     v_along = 0.0;
     return;
   }
-  vec2 vel = mix(u_wind_min, u_wind_max, wtex.rg);
   float vmax = max(max(abs(u_wind_min.x), abs(u_wind_max.x)), max(abs(u_wind_min.y), abs(u_wind_max.y)));
   vmax = max(vmax, 0.5);
   vec2 dir = vel / vmax;
+  float dlen = length(dir);
+  vec2 ndir = dlen > 1e-5 ? dir / dlen : vec2(1.0, 0.0);
+  float trail = max(u_ribbon_deg, 2.4) * max(dlen, 0.35);
   vec2 lonlat = fieldLonLat(pos, u_bbox);
-  vec2 dlonlat = vec2(dir.x, dir.y) * u_ribbon_deg;
-  vec2 tailLonLat = lonlat - dlonlat;
-  vec4 clipH = projectTile(mercator(lonlat));
-  vec4 clipT = projectTile(mercator(tailLonLat));
-  float eps = 1e-5;
-  vec2 ndcH = clipH.xy / max(abs(clipH.w), eps) * sign(clipH.w);
-  vec2 ndcT = clipT.xy / max(abs(clipT.w), eps) * sign(clipT.w);
-  vec2 ndcDir = ndcH - ndcT;
-  float len = length(ndcDir);
-  vec2 n = len > 1e-6 ? vec2(-ndcDir.y, ndcDir.x) / len : vec2(0.0, 1.0);
-  vec2 pixel = vec2(u_ribbon_px / max(u_resolution.x, 1.0), u_ribbon_px / max(u_resolution.y, 1.0)) * 2.0;
-  vec2 offset = n * side * pixel * 0.5;
-  vec2 ndc = mix(ndcH, ndcT, along) + offset;
-  float w = mix(clipH.w, clipT.w, along);
-  float z = mix(clipH.z, clipT.z, along);
+  vec2 head = lonlat;
+  vec2 tail = lonlat - ndir * trail;
+  vec2 perp = vec2(-ndir.y, ndir.x);
+  float halfW = max(0.07, u_ribbon_px * (u_wrap > 0.5 ? 0.085 : 0.045));
+  vec2 sampleLL = mix(head, tail, along) + perp * side * halfW;
   v_along = along;
-  gl_Position = vec4(ndc * w, z, w);
+  gl_Position = projectTile(mercator(sampleLL));
 }
 `
 }
@@ -211,22 +212,36 @@ void main() {
   float fog = smoothstep(1.0, 0.0, d);
   float alpha = mix(fog * 0.88, core * 0.8, u_style);
   alpha *= smoothstep(0.0, 0.045, v_edge);
-  fragColor = vec4(u_color.rgb, u_color.a * alpha);
+  vec3 ink = vec3(0.12, 0.28, 0.42);
+  vec3 cyan = vec3(0.353, 0.784, 0.902);
+  vec3 frost = vec3(0.722, 0.878, 0.941);
+  vec3 rgb = u_style > 0.5
+    ? mix(u_color.rgb, frost, clamp(v_speed / 1.4, 0.0, 1.0))
+    : mix(ink, cyan, clamp(v_speed / 24.0, 0.0, 1.0));
+  fragColor = vec4(rgb, u_color.a * alpha);
 }
 `
 
 export const LINE_FS = `#version 300 es
 precision mediump float;
 uniform vec4 u_color;
+uniform float u_style;
 in float v_alive;
 in float v_along;
 in float v_edge;
+in float v_speed;
 out vec4 fragColor;
 void main() {
   if (v_alive < 0.45) discard;
-  float fade = mix(1.0, 0.18, v_along);
+  float fade = mix(1.0, 0.42, v_along);
   float edge = smoothstep(0.0, 0.045, v_edge);
-  fragColor = vec4(u_color.rgb, u_color.a * 0.9 * fade * edge);
+  vec3 ink = vec3(0.12, 0.28, 0.42);
+  vec3 cyan = vec3(0.353, 0.784, 0.902);
+  vec3 frost = vec3(0.722, 0.878, 0.941);
+  vec3 rgb = u_style > 0.5
+    ? mix(u_color.rgb, frost, clamp(v_speed / 1.4, 0.0, 1.0))
+    : mix(ink, cyan, pow(clamp(v_speed / 24.0, 0.0, 1.0), 0.85));
+  fragColor = vec4(rgb, u_color.a * 0.95 * fade * edge);
 }
 `
 
@@ -235,6 +250,7 @@ export function makeQuadGeoVS(prelude: string, define: string): string {
 ${prelude}
 ${define}
 uniform vec4 u_bbox;
+uniform vec2 u_grid;
 out vec2 v_uv;
 vec2 mercator(vec2 lonlat) {
   float lon = lonlat.x;
@@ -245,13 +261,20 @@ vec2 mercator(vec2 lonlat) {
   return vec2(x, y);
 }
 void main() {
-  vec2 corners[4];
-  corners[0] = vec2(u_bbox.x, u_bbox.y);
-  corners[1] = vec2(u_bbox.z, u_bbox.y);
-  corners[2] = vec2(u_bbox.x, u_bbox.w);
-  corners[3] = vec2(u_bbox.z, u_bbox.w);
-  vec2 lonlat = corners[gl_VertexID];
-  v_uv = vec2(gl_VertexID == 1 || gl_VertexID == 3 ? 1.0 : 0.0, gl_VertexID == 2 || gl_VertexID == 3 ? 1.0 : 0.0);
+  float vid = float(gl_VertexID);
+  float nx = max(u_grid.x, 1.0);
+  float ny = max(u_grid.y, 1.0);
+  float tri = floor(vid / 6.0);
+  float k = mod(vid, 6.0);
+  float ix = mod(tri, nx);
+  float iy = floor(tri / nx);
+  vec2 c0 = vec2(ix, iy);
+  vec2 c1 = vec2(ix + 1.0, iy);
+  vec2 c2 = vec2(ix, iy + 1.0);
+  vec2 c3 = vec2(ix + 1.0, iy + 1.0);
+  vec2 grid = k == 0.0 || k == 3.0 ? c0 : k == 1.0 ? c1 : k == 2.0 || k == 4.0 ? c3 : c2;
+  v_uv = grid / vec2(nx, ny);
+  vec2 lonlat = vec2(mix(u_bbox.x, u_bbox.z, v_uv.x), mix(u_bbox.y, u_bbox.w, v_uv.y));
   gl_Position = projectTile(mercator(lonlat));
 }
 `
@@ -270,24 +293,28 @@ void main() {
   vec4 w = texture(u_wind, v_uv);
   float t = w.a;
   if (u_mode < 0.5) {
-    vec3 cold = vec3(0.22, 0.42, 0.72);
-    vec3 mid = vec3(0.78, 0.52, 0.36);
-    vec3 cream = vec3(0.93, 0.84, 0.70);
-    vec3 c = mix(cold, mid, smoothstep(0.04, 0.52, t));
-    c = mix(c, cream, smoothstep(0.52, 0.96, t));
-    float a = 0.54 * smoothstep(0.01, 0.9, t);
+    vec3 blue = vec3(0.12, 0.28, 0.72);
+    vec3 cyan = vec3(0.35, 0.82, 0.90);
+    vec3 yellow = vec3(0.95, 0.84, 0.28);
+    vec3 red = vec3(0.86, 0.22, 0.18);
+    vec3 c = t < 0.33 ? mix(blue, cyan, t / 0.33)
+      : t < 0.66 ? mix(cyan, yellow, (t - 0.33) / 0.33)
+      : mix(yellow, red, (t - 0.66) / 0.34);
+    float a = mix(0.38, 0.52, smoothstep(0.0, 1.0, t));
     fragColor = vec4(c, a);
   } else {
-    if (t < 0.07) discard;
-    float puddle = smoothstep(0.07, 0.68, t);
+    if (t < 0.045) discard;
+    float puddle = smoothstep(0.045, 0.72, t);
     float blob = puddle * puddle * (3.0 - 2.0 * puddle);
-    float a = blob * 0.58;
+    float a = mix(0.40, 0.58, blob);
     if (u_hatch > 0.5) {
       float hatch = abs(fract((v_uv.x + v_uv.y) * 42.0) - 0.5);
       float line = smoothstep(0.22, 0.08, hatch);
       a = mix(a, line * puddle * 0.7, 0.55);
     }
-    vec3 c = vec3(0.38, 0.70, 0.86);
+    vec3 light = vec3(0.55, 0.88, 0.95);
+    vec3 indigo = vec3(0.22, 0.28, 0.72);
+    vec3 c = mix(light, indigo, smoothstep(0.08, 0.88, t));
     fragColor = vec4(c, a);
   }
 }

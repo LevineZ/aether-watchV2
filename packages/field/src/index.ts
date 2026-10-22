@@ -1,5 +1,15 @@
-export type { BBox, DemoPackId, FieldFrame, FieldKind, FieldSource, NcErrorCode, PackMetaJson } from './types'
-export { inferKind, MAX_NC_BYTES, NcUploadError, PAGE_DEFAULT_KIND, PAGE_PACK, packForKind } from './types'
+export type { BBox, DemoPackId, FieldFrame, FieldKind, FieldSource, NcErrorCode, PackMetaJson, PageId } from './types'
+export {
+  inferKind,
+  MAX_NC_BYTES,
+  NcUploadError,
+  PAGE_DEFAULT_KIND,
+  PAGE_KIND_PACK,
+  PAGE_PACK,
+  packForKind,
+  isRegionalStamp,
+  assertGlobalPack,
+} from './types'
 export { allowsOceanMask, applyMaskContract } from './mask'
 export { loadDemo, DEMO_PACK_BASE } from './demo'
 export { loadLive } from './live'

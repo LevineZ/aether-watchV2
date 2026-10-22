@@ -130,8 +130,8 @@ function fieldToRgba(frame: FieldFrame): { data: Uint8Array; uMin: number; uMax:
   return { data, uMin: ur[0], uMax: ur[1], vMin: vr[0], vMax: vr[1] }
 }
 
-/** 关收 tip 默认平流 0.005 × 1.05/0.85。本 tip 全局 ×0.52，洋流再压到 ≤0.4×。 */
-export const ADVECT_STEP = 0.0026
+/** 关收 tip 默认平流 0.005。风 √(U²+V²)×0.50；洋流再压到 ×0.40。 */
+export const ADVECT_STEP = 0.0025
 export const KIND_LOOK: Record<
   FieldKind,
   {
@@ -151,30 +151,30 @@ export const KIND_LOOK: Record<
     style: 'wind-fog',
     overlay: 'none',
     speed: 1.0,
-    drop: 0.0018,
-    size: 1.9,
-    color: [0.353, 0.784, 0.902, 0.48],
-    ribbonDeg: 3.35,
-    ribbonPx: 2.45,
+    drop: 0.0016,
+    size: 1.85,
+    color: [0.353, 0.784, 0.902, 0.32],
+    ribbonDeg: 3.6,
+    ribbonPx: 2.2,
     uvScale: 1,
     pool: 'wind',
   },
   ocean: {
     style: 'currents',
     overlay: 'none',
-    speed: 0.65,
-    drop: 0.0045,
-    size: 3.1,
-    color: [0.62, 0.84, 0.92, 0.38],
-    ribbonDeg: 1.2,
-    ribbonPx: 5.8,
+    speed: 0.8,
+    drop: 0.0022,
+    size: 2.9,
+    color: [0.58, 0.84, 0.93, 0.28],
+    ribbonDeg: 2.35,
+    ribbonPx: 6.2,
     uvScale: 1,
     pool: 'currents',
   },
   temp: {
     style: 'wind-fog',
     overlay: 'temp',
-    speed: 0.12,
+    speed: 0,
     drop: 0.0016,
     size: 1.35,
     color: [0.9, 0.82, 0.7, 0.1],
@@ -186,7 +186,7 @@ export const KIND_LOOK: Record<
   precip: {
     style: 'currents',
     overlay: 'precip',
-    speed: 0.1,
+    speed: 0,
     drop: 0.0016,
     size: 1.5,
     color: [0.45, 0.76, 0.9, 0.14],
@@ -388,10 +388,10 @@ export class ParticleLayer {
     this.ribbonPx = look.ribbonPx
     this.uvScale = look.uvScale
     this.pool = look.pool
-    if (kind === 'wind') {
-      this.wrap = Math.abs(this.bbox[2] - this.bbox[0]) > 350 ? 1 : 0
-    } else {
-      this.wrap = 0
+    const lonSpan = Math.abs(this.bbox[2] - this.bbox[0])
+    this.wrap = lonSpan > 350 ? 1 : 0
+    if (this.wrap) {
+      this.ribbonDeg = look.ribbonDeg * (kind === 'ocean' ? 5.2 : 6.2)
     }
     if (kind === 'temp' || kind === 'precip') {
       this.advecting = false
@@ -520,7 +520,8 @@ export class ParticleLayer {
       g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
       g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
       this.drawRibbons(g, matrix, count)
-      this.drawParticles(g, matrix, Math.floor(count * (this.kind === 'ocean' ? 0.08 : 0.06)))
+      const heads = this.kind === 'ocean' ? 0.04 : this.wrap ? 0 : 0.025
+      this.drawParticles(g, matrix, Math.floor(count * heads))
     }
 
     if (prevVao) g.bindVertexArray(prevVao)
@@ -669,6 +670,8 @@ export class ParticleLayer {
     g.uniform1f(g.getUniformLocation(this.drawProg, 'u_size'), this.size)
     g.uniform1f(g.getUniformLocation(this.drawProg, 'u_count'), count)
     g.uniform1f(g.getUniformLocation(this.drawProg, 'u_wrap'), this.wrap)
+    g.uniform2f(g.getUniformLocation(this.drawProg, 'u_wind_min'), this.uMin, this.vMin)
+    g.uniform2f(g.getUniformLocation(this.drawProg, 'u_wind_max'), this.uMax, this.vMax)
     g.uniform4f(g.getUniformLocation(this.drawProg, 'u_color'), this.color[0], this.color[1], this.color[2], this.color[3])
     g.uniform1f(g.getUniformLocation(this.drawProg, 'u_style'), this.style === 'currents' ? 1 : 0)
     g.drawArrays(g.POINTS, 0, count)
@@ -698,13 +701,18 @@ export class ParticleLayer {
     g.uniform1f(g.getUniformLocation(this.lineProg, 'u_count'), ribbonCount)
     g.uniform1f(g.getUniformLocation(this.lineProg, 'u_ribbon_deg'), this.ribbonDeg)
     g.uniform1f(g.getUniformLocation(this.lineProg, 'u_ribbon_px'), this.ribbonPx)
+    g.uniform1f(g.getUniformLocation(this.lineProg, 'u_size'), this.size)
+    g.uniform1f(g.getUniformLocation(this.lineProg, 'u_min_trail'), this.size * (this.wrap ? 16 : 6.5))
     g.uniform1f(g.getUniformLocation(this.lineProg, 'u_wrap'), this.wrap)
+    g.uniform1f(g.getUniformLocation(this.lineProg, 'u_style'), this.style === 'currents' ? 1 : 0)
     g.uniform4f(g.getUniformLocation(this.lineProg, 'u_color'), this.color[0], this.color[1], this.color[2], this.color[3])
     g.drawArrays(g.TRIANGLES, 0, ribbonCount * 6)
   }
 
   private drawScalar(g: GL, matrix: Float32Array | number[]) {
     if (!this.scalarProg) return
+    const lonSeg = this.wrap ? 36 : 8
+    const latSeg = this.wrap ? 16 : 6
     g.enable(g.BLEND)
     g.blendFunc(g.SRC_ALPHA, g.ONE_MINUS_SRC_ALPHA)
     g.disable(g.DEPTH_TEST)
@@ -715,9 +723,10 @@ export class ParticleLayer {
     g.uniform1i(g.getUniformLocation(this.scalarProg, 'u_wind'), 0)
     this.bindProjection(g, this.scalarProg, matrix)
     this.bindField(g, this.scalarProg)
+    g.uniform2f(g.getUniformLocation(this.scalarProg, 'u_grid'), lonSeg, latSeg)
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_mode'), this.overlay === 'precip' ? 1 : 0)
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_hatch'), 0)
-    g.drawArrays(g.TRIANGLE_STRIP, 0, 4)
+    g.drawArrays(g.TRIANGLES, 0, lonSeg * latSeg * 6)
   }
 }
 
