@@ -1,47 +1,25 @@
 <script setup lang="ts">
 import { watch } from 'vue'
 import { useUiStore } from '@/stores/ui'
-import { useFieldStore } from '@/stores/field'
 import { useT } from '@/i18n'
 import { mapRuntime } from '@/map/runtime'
 import NcUpload from './NcUpload.vue'
+import FieldChips from './FieldChips.vue'
 
 const ui = useUiStore()
-const field = useFieldStore()
 const t = useT()
 
 watch(
-  () => [ui.density, ui.pointSize, ui.strength, ui.overlay],
+  () => [ui.density, ui.pointSize, ui.strength],
   () => {
     const p = mapRuntime.particles
     if (!p) return
     p.setSpeed(ui.strength)
     p.setDensity(ui.density)
-    if (ui.overlay === 'none') {
-      p.setSize(ui.pointSize * (ui.page === 'regional' ? 3.2 : 2.0))
-    }
-    p.setOverlay(ui.overlay)
+    p.setSize(ui.pointSize * (ui.kind === 'ocean' ? 3.1 : ui.kind === 'wind' ? 1.7 : 1.4))
     if (p.getLod() !== 'paused') p.setLod('peak')
   },
 )
-
-async function setOverlay(mode: 'none' | 'temp' | 'precip') {
-  ui.overlay = mode
-  const p = mapRuntime.particles
-  if (mode === 'temp') {
-    await field.ensurePack('regional/temp')
-    p?.setOverlay('temp')
-  } else if (mode === 'precip') {
-    await field.ensurePack('regional/precip')
-    p?.setOverlay('precip')
-  } else {
-    await field.showPage('regional')
-    p?.setStyle('currents')
-    p?.setOverlay('none')
-  }
-  p?.setLod('peak')
-  mapRuntime.resume()
-}
 </script>
 
 <template>
@@ -64,16 +42,9 @@ async function setOverlay(mode: 'none' | 'temp' | 'precip') {
       <div class="bar" />
       <span>{{ t.strong }}</span>
     </div>
+    <p class="panel-title">{{ t.elements }}</p>
     <div class="layers">
-      <button class="btn-ghost" :class="{ active: ui.overlay === 'none' }" type="button" @click="setOverlay('none')">
-        {{ t.currents }}
-      </button>
-      <button class="btn-ghost" :class="{ active: ui.overlay === 'temp' }" type="button" @click="setOverlay('temp')">
-        {{ t.temp }}
-      </button>
-      <button class="btn-ghost" :class="{ active: ui.overlay === 'precip' }" type="button" @click="setOverlay('precip')">
-        {{ t.precip }}
-      </button>
+      <FieldChips />
     </div>
     <NcUpload />
   </section>

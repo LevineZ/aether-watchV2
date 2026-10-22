@@ -3,7 +3,6 @@ import { useRouter, useRoute } from 'vue-router'
 import { useUiStore, type PageId } from '@/stores/ui'
 import { useT } from '@/i18n'
 import Logo from './Logo.vue'
-import DemoBadge from './DemoBadge.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -47,7 +46,6 @@ function go(to: string) {
         <span class="sep">/</span>
         <span :class="{ on: ui.locale === 'en' }">{{ t.langEn }}</span>
       </button>
-      <DemoBadge />
     </div>
   </header>
 </template>

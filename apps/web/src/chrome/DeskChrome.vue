@@ -3,6 +3,7 @@ import { useUiStore } from '@/stores/ui'
 import { useFieldStore } from '@/stores/field'
 import { useT } from '@/i18n'
 import { mapRuntime } from '@/map/runtime'
+import FieldChips from '@/components/FieldChips.vue'
 
 const ui = useUiStore()
 const field = useFieldStore()
@@ -31,13 +32,6 @@ function pick(city: (typeof cities)[number]) {
   mapRuntime.map?.easeTo({ center: city.c, zoom: 5.4, duration: 700 })
 }
 
-async function bindWindFog() {
-  ui.overlay = 'none'
-  await field.ensurePack('forecast/china')
-  mapRuntime.particles?.setStyle('wind-fog')
-  mapRuntime.particles?.setOverlay('none')
-  mapRuntime.resume()
-}
 </script>
 
 <template>
@@ -54,8 +48,8 @@ async function bindWindFog() {
       </ul>
     </aside>
     <aside class="glass right">
-      <p class="panel-title">{{ t.layers }}</p>
-      <button class="btn-ghost active" type="button" @click="bindWindFog">{{ t.windFog }}</button>
+      <p class="panel-title">{{ t.elements }}</p>
+      <FieldChips />
       <p class="muted" style="margin-top: 12px">{{ t.livePlaceholder }}</p>
       <p class="src">
         <span class="dot" />

@@ -12,7 +12,7 @@
   "uFile": "u.bin",
   "vFile": "v.bin",
   "scalarFile": "scalar.bin",
-  "maskFile": "mask.bin",
+  "maskFile": null,
   "meta": {
     "source": "demo",
     "vars": [

@@ -73,6 +73,20 @@ export const PAGE_PACK: Record<'global' | 'desk' | 'regional', DemoPackId> = {
   regional: 'regional/currents',
 }
 
+export const PAGE_DEFAULT_KIND: Record<'global' | 'desk' | 'regional', FieldKind> = {
+  global: 'wind',
+  desk: 'wind',
+  regional: 'ocean',
+}
+
+/** 三页共用四要素包。区域无独立风包时回退预报台全国风。 */
+export function packForKind(page: 'global' | 'desk' | 'regional', kind: FieldKind): DemoPackId {
+  if (kind === 'wind') return page === 'global' ? 'global/wind' : 'forecast/china'
+  if (kind === 'ocean') return 'regional/currents'
+  if (kind === 'temp') return 'regional/temp'
+  return 'regional/precip'
+}
+
 const PRECIP_VARS = new Set(['tp', 'precip', 'rain', 'precipitation', 'pr'])
 const TEMP_VARS = new Set(['t', 'temp', 't2m', 'temperature', 'sst', 'thetao'])
 const OCEAN_VARS = new Set(['uo', 'vo', 'water_u', 'water_v'])

@@ -70,6 +70,28 @@ function seedParticles(w: number, h: number): Uint8Array {
   return data
 }
 
+/** 硬海 mask 岸线软 1 格（约 2–4px @ 区域窗）。仅 ocean。 */
+function softenOceanMask(mask: Uint8Array, nx: number, ny: number): Uint8Array {
+  const out = new Uint8Array(nx * ny)
+  for (let y = 0; y < ny; y++) {
+    for (let x = 0; x < nx; x++) {
+      let s = 0
+      let c = 0
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const yy = y + dy
+          const xx = x + dx
+          if (yy < 0 || yy >= ny || xx < 0 || xx >= nx) continue
+          s += mask[yy * nx + xx]
+          c++
+        }
+      }
+      out[y * nx + x] = Math.round(s / Math.max(1, c))
+    }
+  }
+  return out
+}
+
 function fieldToRgba(frame: FieldFrame): { data: Uint8Array; uMin: number; uMax: number; vMin: number; vMax: number } {
   const kind = inferKind(frame)
   const oceanMask = kind === 'ocean'
@@ -80,16 +102,22 @@ function fieldToRgba(frame: FieldFrame): { data: Uint8Array; uMin: number; uMax:
   const uSpan = ur[1] - ur[0] || 1
   const vSpan = vr[1] - vr[0] || 1
   const sSpan = sr[1] - sr[0] || 1
+  const soft = oceanMask && frame.mask ? softenOceanMask(frame.mask, frame.nx, frame.ny) : null
   for (let i = 0; i < n; i++) {
     const i4 = i * 4
     const u = frame.u[i]
     const v = frame.v[i]
     const finite = Number.isFinite(u) && Number.isFinite(v)
-    const masked = oceanMask && frame.mask && frame.mask[i] === 0
-    const alive = oceanMask ? finite && !masked : kind === 'wind' ? finite : true
+    let aliveByte = 255
+    if (oceanMask) {
+      const m = soft ? soft[i] : frame.mask ? frame.mask[i] * 255 : 255
+      aliveByte = finite ? m : 0
+    } else if (kind === 'wind') {
+      aliveByte = finite ? 255 : 0
+    }
     data[i4] = finite ? Math.max(0, Math.min(255, Math.round(((u - ur[0]) / uSpan) * 255))) : 0
     data[i4 + 1] = finite ? Math.max(0, Math.min(255, Math.round(((v - vr[0]) / vSpan) * 255))) : 0
-    data[i4 + 2] = alive ? 255 : 0
+    data[i4 + 2] = aliveByte
     const s = frame.scalar
       ? Number.isFinite(frame.scalar[i])
         ? (frame.scalar[i] - sr[0]) / sSpan
@@ -102,6 +130,73 @@ function fieldToRgba(frame: FieldFrame): { data: Uint8Array; uMin: number; uMax:
   return { data, uMin: ur[0], uMax: ur[1], vMin: vr[0], vMax: vr[1] }
 }
 
+/** 关收 tip 默认平流 0.005 × 1.05/0.85。本 tip 全局 ×0.52，洋流再压到 ≤0.4×。 */
+export const ADVECT_STEP = 0.0026
+export const KIND_LOOK: Record<
+  FieldKind,
+  {
+    style: FieldStyle
+    overlay: OverlayMode
+    speed: number
+    drop: number
+    size: number
+    color: [number, number, number, number]
+    ribbonDeg: number
+    ribbonPx: number
+    uvScale: number
+    pool: PoolId
+  }
+> = {
+  wind: {
+    style: 'wind-fog',
+    overlay: 'none',
+    speed: 1.0,
+    drop: 0.0024,
+    size: 1.7,
+    color: [0.353, 0.784, 0.902, 0.26],
+    ribbonDeg: 2.15,
+    ribbonPx: 1.25,
+    uvScale: 1,
+    pool: 'wind',
+  },
+  ocean: {
+    style: 'currents',
+    overlay: 'none',
+    speed: 0.65,
+    drop: 0.0045,
+    size: 3.1,
+    color: [0.62, 0.84, 0.92, 0.38],
+    ribbonDeg: 1.2,
+    ribbonPx: 5.8,
+    uvScale: 1,
+    pool: 'currents',
+  },
+  temp: {
+    style: 'wind-fog',
+    overlay: 'temp',
+    speed: 0.12,
+    drop: 0.0016,
+    size: 1.35,
+    color: [0.9, 0.82, 0.7, 0.1],
+    ribbonDeg: 1.35,
+    ribbonPx: 1.05,
+    uvScale: 0,
+    pool: 'currents',
+  },
+  precip: {
+    style: 'currents',
+    overlay: 'precip',
+    speed: 0.1,
+    drop: 0.0016,
+    size: 1.5,
+    color: [0.45, 0.76, 0.9, 0.14],
+    ribbonDeg: 0.85,
+    ribbonPx: 2.3,
+    uvScale: 0,
+    pool: 'currents',
+  },
+}
+
 export type ParticleLayerOptions = {
   id?: string
 }
@@ -110,7 +205,7 @@ export type ParticleLayerOptions = {
  * MapLibre CustomLayer：GPU 粒子。
  * - 粒子 UV 只活在 FieldFrame.bbox 内；每帧用当前相机 defaultProjectionData 重绑，禁止缓存 world→UV。
  * - 空闲 peak≈40 万；拖动停平流、计数不砍；松手 peak + 重投。
- * - temp/precip 只画 overlay 面，关丝带。
+ * - temp/precip：scalar 幕 + 极淡近静止雾；禁 UV 乱窜。
  */
 export class ParticleLayer {
   id: string
@@ -141,13 +236,15 @@ export class ParticleLayer {
   private overlay: OverlayMode = 'none'
   private kind: FieldKind = 'wind'
   private pool: PoolId = 'wind'
-  private speed = 1
-  private size = 2.0
-  private color: [number, number, number, number] = [0.353, 0.784, 0.902, 0.3]
-  private drop = 0.004
+  private speed = KIND_LOOK.wind.speed
+  private speedMul = 1
+  private uvScale = 1
+  private size = KIND_LOOK.wind.size
+  private color: [number, number, number, number] = KIND_LOOK.wind.color
+  private drop = KIND_LOOK.wind.drop
   private density = 0.48
-  private ribbonDeg = 2.8
-  private ribbonPx = 1.7
+  private ribbonDeg = KIND_LOOK.wind.ribbonDeg
+  private ribbonPx = KIND_LOOK.wind.ribbonPx
   private advecting = true
   private hasFrame = false
   private pendingReseed = false
@@ -266,40 +363,42 @@ export class ParticleLayer {
     this.map?.triggerRepaint()
   }
 
-  setStyle(style: FieldStyle) {
-    this.style = style
-    if (style === 'currents') {
-      this.size = 3.2
-      this.color = [0.353, 0.784, 0.902, 0.34]
-      this.wrap = 0
-      this.pool = 'currents'
-      this.speed = 0.85
-      this.drop = 0.008
-      this.ribbonDeg = 1.35
-      this.ribbonPx = 5.6
-      this.kind = 'ocean'
-    } else {
-      this.size = 2.0
-      this.color = [0.353, 0.784, 0.902, 0.3]
+  applyKindLook(kind: FieldKind) {
+    const look = KIND_LOOK[kind]
+    this.kind = kind
+    this.style = look.style
+    this.overlay = look.overlay
+    this.speed = look.speed
+    this.drop = look.drop
+    this.size = look.size
+    this.color = look.color
+    this.ribbonDeg = look.ribbonDeg
+    this.ribbonPx = look.ribbonPx
+    this.uvScale = look.uvScale
+    this.pool = look.pool
+    if (kind === 'wind') {
       this.wrap = Math.abs(this.bbox[2] - this.bbox[0]) > 350 ? 1 : 0
-      this.pool = 'wind'
-      this.speed = 1.05
-      this.drop = 0.004
-      this.ribbonDeg = 2.8
-      this.ribbonPx = 1.7
-      this.kind = 'wind'
+    } else {
+      this.wrap = 0
     }
     this.map?.triggerRepaint()
   }
 
+  setStyle(style: FieldStyle) {
+    this.applyKindLook(style === 'currents' ? 'ocean' : 'wind')
+  }
+
   setOverlay(mode: OverlayMode) {
-    this.overlay = mode
-    if (mode !== 'none') this.kind = mode
-    this.map?.triggerRepaint()
+    if (mode === 'none') {
+      if (this.kind === 'temp' || this.kind === 'precip') this.applyKindLook(this.pool === 'currents' ? 'ocean' : 'wind')
+      else this.map?.triggerRepaint()
+      return
+    }
+    this.applyKindLook(mode)
   }
 
   setSpeed(v: number) {
-    this.speed = v
+    this.speedMul = v
   }
 
   setSize(v: number) {
@@ -312,12 +411,14 @@ export class ParticleLayer {
   }
 
   showParticles(): boolean {
-    return this.overlay === 'none' && this.kind !== 'temp' && this.kind !== 'precip'
+    return true
   }
 
   drawCount(): number {
+    const d = Math.max(0.2, Math.min(1, this.density))
+    if (this.kind === 'temp' || this.kind === 'precip') return Math.floor(10_000 * d)
     return visualCount({
-      ocean: this.style === 'currents' || this.kind === 'ocean',
+      ocean: this.kind === 'ocean',
       regionalWindow: this.wrap < 0.5,
       density: this.density,
     })
@@ -401,7 +502,7 @@ export class ParticleLayer {
       g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
       g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
       this.drawRibbons(g, matrix, count)
-      this.drawParticles(g, matrix, Math.floor(count * (this.style === 'currents' ? 0.08 : 0.12)))
+      this.drawParticles(g, matrix, Math.floor(count * (this.kind === 'ocean' ? 0.08 : this.kind === 'wind' ? 0.12 : 0.06)))
     }
 
     if (prevVao) g.bindVertexArray(prevVao)
@@ -423,25 +524,7 @@ export class ParticleLayer {
   }
 
   private applyKind(frame: FieldFrame) {
-    const kind = inferKind(frame)
-    this.kind = kind
-    if (kind === 'temp') {
-      this.overlay = 'temp'
-      this.pool = 'currents'
-      this.wrap = 0
-    } else if (kind === 'precip') {
-      this.overlay = 'precip'
-      this.pool = 'currents'
-      this.wrap = 0
-    } else if (kind === 'ocean') {
-      this.overlay = 'none'
-      this.setStyle('currents')
-    } else {
-      this.overlay = 'none'
-      this.setStyle('wind-fog')
-    }
-    const span = Math.abs(frame.bbox[2] - frame.bbox[0])
-    if (kind === 'wind') this.wrap = span > 350 ? 1 : 0
+    this.applyKindLook(inferKind(frame))
   }
 
   private captureProj(args: unknown) {
@@ -532,8 +615,9 @@ export class ParticleLayer {
     g.uniform2f(g.getUniformLocation(this.updateProg, 'u_wind_min'), this.uMin, this.vMin)
     g.uniform2f(g.getUniformLocation(this.updateProg, 'u_wind_max'), this.uMax, this.vMax)
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_rand_seed'), Math.random())
-    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_speed'), this.speed)
-    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_advect'), 0.005)
+    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_speed'), this.speed * this.speedMul)
+    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_advect'), ADVECT_STEP)
+    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_uv_scale'), this.uvScale)
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_drop_rate'), this.drop)
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_wrap'), this.wrap)
     g.bindBuffer(g.ARRAY_BUFFER, this.quadBuf)

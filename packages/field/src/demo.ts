@@ -1,3 +1,4 @@
+import { applyMaskContract } from './mask'
 import { inferKind, type DemoPackId, type FieldFrame, type PackMetaJson } from './types'
 
 export const DEMO_PACK_BASE: Record<DemoPackId, string> = {
@@ -39,11 +40,13 @@ export async function loadDemo(packId: DemoPackId | string): Promise<FieldFrame>
   const n = pack.nx * pack.ny
   if (!n) throw new Error(`${packId} 网格尺寸无效`)
 
+  const kindHint = pack.kind ?? inferKind({ meta: pack.meta ?? { source: 'demo', vars: [], units: '' }, packId })
+  const wantMask = kindHint === 'ocean' && !!pack.maskFile
   const [uBuf, vBuf, scalarBuf, maskBuf] = await Promise.all([
     fetchBuf(`${base}/${pack.uFile || 'u.bin'}`),
     fetchBuf(`${base}/${pack.vFile || 'v.bin'}`),
     pack.scalarFile ? fetchBuf(`${base}/${pack.scalarFile}`).catch(() => null) : Promise.resolve(null),
-    pack.maskFile ? fetchBuf(`${base}/${pack.maskFile}`).catch(() => null) : Promise.resolve(null),
+    wantMask ? fetchBuf(`${base}/${pack.maskFile as string}`).catch(() => null) : Promise.resolve(null),
   ])
 
   const frame: FieldFrame = {
@@ -62,7 +65,6 @@ export async function loadDemo(packId: DemoPackId | string): Promise<FieldFrame>
   }
   if (scalarBuf) frame.scalar = asF32(scalarBuf, n, 'scalar.bin')
   frame.kind = pack.kind ?? inferKind({ ...frame, packId })
-  // 仅 ocean 用硬海 mask。temp/precip/wind 切 kind 必须清 mask，scalar 全 bbox。
   if (frame.kind === 'ocean' && maskBuf) frame.mask = asU8(maskBuf, n, 'mask.bin')
-  return frame
+  return applyMaskContract(frame)
 }

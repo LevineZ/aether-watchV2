@@ -5,6 +5,7 @@ import { useT } from '@/i18n'
 import { mapRuntime } from '@/map/runtime'
 import Sparkline from '@/components/Sparkline.vue'
 import WindLegend from '@/components/WindLegend.vue'
+import FieldChips from '@/components/FieldChips.vue'
 
 const field = useFieldStore()
 const t = useT()
@@ -58,6 +59,8 @@ function fly(center: [number, number], zoom: number) {
         <button class="btn-ghost" type="button" @click="fly([70, 0], 2.3)">{{ t.indian }}</button>
         <button class="btn-ghost" type="button" @click="fly([124, 28], 4.2)">{{ t.chinaSea }}</button>
       </div>
+      <p class="panel-title" style="margin-top: 14px">{{ t.elements }}</p>
+      <FieldChips />
       <p class="panel-title" style="margin-top: 14px">{{ t.dataInfo }}</p>
       <p class="muted">{{ t.livePlaceholder }}</p>
       <p class="src">

@@ -1,3 +1,4 @@
+import { applyMaskContract } from './mask'
 import type { BBox, FieldFrame } from './types'
 
 function lonLatAt(frame: FieldFrame, ix: number, iy: number): [number, number] {
@@ -62,7 +63,7 @@ export function clipToBbox(frame: FieldFrame, bbox: BBox, nx = 96, ny = 64): Fie
     }
   }
 
-  return {
+  return applyMaskContract({
     nx,
     ny,
     bbox,
@@ -73,7 +74,7 @@ export function clipToBbox(frame: FieldFrame, bbox: BBox, nx = 96, ny = 64): Fie
     mask,
     kind: frame.kind,
     meta: { ...frame.meta },
-  }
+  })
 }
 
 export function gridLonLat(frame: FieldFrame): { lon: Float32Array; lat: Float32Array } {

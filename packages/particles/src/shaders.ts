@@ -17,6 +17,7 @@ uniform vec2 u_wind_max;
 uniform float u_rand_seed;
 uniform float u_speed;
 uniform float u_advect;
+uniform float u_uv_scale;
 uniform float u_drop_rate;
 uniform float u_wrap;
 in vec2 v_uv;
@@ -41,8 +42,8 @@ void main() {
   float mask = wtex.b;
   float vmax = max(max(abs(u_wind_min.x), abs(u_wind_max.x)), max(abs(u_wind_min.y), abs(u_wind_max.y)));
   vmax = max(vmax, 0.5);
-  pos += (vel / vmax) * (u_advect * u_speed);
-  float drop = u_drop_rate + length(vel) / vmax * 0.01;
+  pos += (vel / vmax) * (u_advect * u_speed * u_uv_scale);
+  float drop = u_drop_rate + length(vel) / vmax * 0.01 * u_uv_scale;
   float r = rand(pos + u_rand_seed);
   bool dead = mask < 0.45 || r < drop;
   if (u_wrap > 0.5) {
@@ -266,21 +267,22 @@ in vec2 v_uv;
 out vec4 fragColor;
 void main() {
   vec4 w = texture(u_wind, v_uv);
-  float mask = w.b;
   float t = w.a;
   if (u_mode < 0.5) {
-    if (mask < 0.12) discard;
-    vec3 cold = vec3(0.353, 0.784, 0.902);
-    vec3 cream = vec3(0.898, 0.851, 0.769);
-    vec3 c = mix(cold, cream, smoothstep(0.08, 0.92, t));
-    float a = 0.58 * smoothstep(0.08, 0.35, mask);
+    vec3 cold = vec3(0.22, 0.42, 0.72);
+    vec3 mid = vec3(0.78, 0.52, 0.36);
+    vec3 cream = vec3(0.93, 0.84, 0.70);
+    vec3 c = mix(cold, mid, smoothstep(0.05, 0.55, t));
+    c = mix(c, cream, smoothstep(0.55, 0.95, t));
+    float a = 0.46 * smoothstep(0.02, 0.88, t);
     fragColor = vec4(c, a);
   } else {
-    if (t < 0.10) discard;
-    float puddle = smoothstep(0.10, 0.78, t);
-    float edge = smoothstep(0.10, 0.28, t) * (1.0 - smoothstep(0.82, 1.0, t) * 0.25);
-    float a = puddle * 0.62 * edge;
-    vec3 c = vec3(0.353, 0.784, 0.902);
+    if (t < 0.08) discard;
+    float puddle = smoothstep(0.08, 0.72, t);
+    float hatch = abs(fract((v_uv.x + v_uv.y) * 42.0) - 0.5);
+    float line = smoothstep(0.22, 0.08, hatch);
+    float a = mix(puddle * 0.42, line * puddle * 0.70, 0.55);
+    vec3 c = vec3(0.42, 0.74, 0.88);
     fragColor = vec4(c, a);
   }
 }

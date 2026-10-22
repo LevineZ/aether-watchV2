@@ -131,7 +131,7 @@ function pack(dir, { nx, ny, bbox, time, u, v, scalar, mask, vars, units, fill, 
     uFile: 'u.bin',
     vFile: 'v.bin',
     scalarFile: scalar ? 'scalar.bin' : null,
-    maskFile: mask ? 'mask.bin' : null,
+    maskFile: kind === 'ocean' && mask ? 'mask.bin' : null,
     meta: {
       source: source ?? 'demo',
       vars,
@@ -150,7 +150,7 @@ function pack(dir, { nx, ny, bbox, time, u, v, scalar, mask, vars, units, fill, 
     const stale = path.join(dir, 'scalar.bin')
     if (fs.existsSync(stale)) fs.unlinkSync(stale)
   }
-  if (mask) writeU8(path.join(dir, 'mask.bin'), mask)
+  if (kind === 'ocean' && mask) writeU8(path.join(dir, 'mask.bin'), mask)
   else {
     const stale = path.join(dir, 'mask.bin')
     if (fs.existsSync(stale)) fs.unlinkSync(stale)
@@ -826,7 +826,6 @@ pack(path.join(demoRoot, 'regional', 'temp'), {
   u: rt.u,
   v: rt.v,
   scalar: rt.scalar,
-  mask: rt.mask,
   time: now,
   kind: 'temp',
   vars: ['sst'],
@@ -841,7 +840,6 @@ pack(path.join(demoRoot, 'regional', 'precip'), {
   u: rp.u,
   v: rp.v,
   scalar: rp.scalar,
-  mask: rp.mask,
   time: now,
   kind: 'precip',
   vars: ['precip'],
@@ -868,7 +866,7 @@ fs.writeFileSync(
 - \`meta.json\`
 - \`u.bin\` / \`v.bin\`：Float32 little-endian，长度 \`nx*ny\`
 - 行主序 **south → north**，列 west → east
-- 可选 \`scalar.bin\`（同形状 f32）、\`mask.bin\`（Uint8，1=有效/海洋，0=陆地）
+- 可选 \`scalar.bin\`（同形状 f32）；\`mask.bin\` **仅 ocean**（Uint8，1=海洋，0=陆地）。temp/precip/wind 禁 maskFile。
 
 禁止把私有 JSON 直接喂给粒子层。前端只认 FieldFrame。
 

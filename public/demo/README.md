@@ -5,7 +5,7 @@
 - `meta.json`
 - `u.bin` / `v.bin`：Float32 little-endian，长度 `nx*ny`
 - 行主序 **south → north**，列 west → east
-- 可选 `scalar.bin`（同形状 f32）、`mask.bin`（Uint8，1=有效/海洋，0=陆地）
+- 可选 `scalar.bin`（同形状 f32）；`mask.bin` **仅 ocean**（Uint8，1=海洋，0=陆地）。temp / precip / wind 禁止 `maskFile`。
 
 禁止把私有 JSON 直接喂给粒子层。前端只认 FieldFrame。
 

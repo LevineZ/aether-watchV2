@@ -19,13 +19,7 @@ let ro: ResizeObserver | null = null
 function syncParticles() {
   const p = mapRuntime.particles
   if (!p) return
-  if (ui.page === 'regional') {
-    if (ui.overlay === 'none') p.setStyle('currents')
-    p.setOverlay(ui.overlay)
-  } else {
-    p.setStyle('wind-fog')
-    p.setOverlay('none')
-  }
+  p.applyKindLook(ui.kind)
   if (field.frame) p.setFrame(field.frame)
 }
 
@@ -51,7 +45,7 @@ onMounted(() => {
     particles.setDensity(ui.density)
     map?.resize()
     applyCamera(ui.page)
-    applyBasemap(map, ui.page)
+    applyBasemap(map, ui.page, ui.kind)
     syncParticles()
     particles.resume()
     field.preloadIdle()
@@ -62,9 +56,9 @@ onMounted(() => {
 })
 
 watch(
-  () => [ui.page, field.frame] as const,
+  () => [ui.page, ui.kind, field.frame] as const,
   () => {
-    if (map) applyBasemap(map, ui.page)
+    if (map) applyBasemap(map, ui.page, ui.kind)
     syncParticles()
   },
 )
@@ -83,9 +77,8 @@ onBeforeUnmount(() => {
 <template>
   <div class="map-wrap">
     <div class="map-host" ref="root" />
-    <div class="corner" aria-hidden="true">
-      {{ t.demoBadge }}
-      <span v-if="ui.page === 'regional'" class="attr">{{ t.basemapAttr }}</span>
+    <div v-if="ui.kind === 'ocean'" class="corner" aria-hidden="true">
+      <span class="attr">{{ t.basemapAttr }}</span>
     </div>
     <div v-if="field.status === 'loading'" class="toast glass">{{ t.loading }}</div>
     <div v-else-if="field.status === 'error'" class="toast glass err">

@@ -1,12 +1,17 @@
 import { defineStore } from 'pinia'
 import {
+  applyMaskContract,
+  inferKind,
   loadDemo,
   parseNcFile,
   fieldStats,
   uvRange,
+  PAGE_DEFAULT_KIND,
   PAGE_PACK,
+  packForKind,
   type DemoPackId,
   type FieldFrame,
+  type FieldKind,
   type FieldStats,
   type NcUploadError,
 } from '@aether/field'
@@ -34,9 +39,13 @@ export const useFieldStore = defineStore('field', {
   },
   actions: {
     bindToGpu(frame: FieldFrame | null) {
+      const ui = useUiStore()
+      if (frame) applyMaskContract(frame)
       this.frame = frame
       this.stats = frame ? fieldStats(frame) : null
       if (frame) {
+        const kind = inferKind(frame)
+        ui.setKind(kind)
         const uv = uvRange(frame)
         console.info('[aether] FieldFrame', {
           pack: this.activePack,
@@ -44,12 +53,12 @@ export const useFieldStore = defineStore('field', {
           ny: frame.ny,
           bbox: [...frame.bbox],
           uvRange: { u: uv.u, v: uv.v },
-          kind: frame.kind,
+          kind,
+          hasMask: !!frame.mask,
         })
       }
       mapRuntime.particles?.setFrame(frame)
-      const page = useUiStore().page
-      lockBounds(page === 'regional' ? (frame?.bbox ?? null) : null, page)
+      lockBounds(ui.page === 'regional' ? (frame?.bbox ?? null) : null, ui.page)
     },
     async loadIntoCache(packId: DemoPackId) {
       if (this.cache[packId]) return this.cache[packId]
@@ -81,6 +90,7 @@ export const useFieldStore = defineStore('field', {
     },
     async showPage(page: PageId) {
       const seq = ++this.pageSeq
+      const ui = useUiStore()
       if (page === 'about') {
         if (seq !== this.pageSeq) return
         mapRuntime.particles?.setFrame(this.cache[PAGE_PACK.global] ?? null)
@@ -93,7 +103,9 @@ export const useFieldStore = defineStore('field', {
         this.bindToGpu(this.cache.upload)
         return
       }
-      const pack = PAGE_PACK[page]
+      const kind = PAGE_DEFAULT_KIND[page]
+      ui.setKind(kind)
+      const pack = packForKind(page, kind)
       this.status = 'loading'
       this.error = ''
       try {
@@ -103,9 +115,40 @@ export const useFieldStore = defineStore('field', {
         this.status = 'ready'
         this.bindToGpu(frame)
       } catch (e) {
+        if (kind === 'ocean') {
+          try {
+            const fallback = packForKind(page, 'wind')
+            const frame = await this.loadIntoCache(fallback)
+            if (seq !== this.pageSeq) return
+            ui.setKind('wind')
+            this.activePack = fallback
+            this.status = 'ready'
+            this.bindToGpu(frame)
+            return
+          } catch {
+            /* fall through */
+          }
+        }
         if (seq !== this.pageSeq) return
         this.status = 'error'
         this.error = e instanceof Error ? e.message : String(e)
+      }
+    },
+    async selectKind(kind: FieldKind) {
+      const ui = useUiStore()
+      if (ui.page === 'about') return
+      ui.setKind(kind)
+      const pack = packForKind(ui.page, kind)
+      try {
+        await this.ensurePack(pack)
+      } catch (e) {
+        if (kind === 'ocean') {
+          ui.setKind('wind')
+          await this.ensurePack(packForKind(ui.page, 'wind'))
+          return
+        }
+        this.error = e instanceof Error ? e.message : String(e)
+        this.status = 'error'
       }
     },
     preloadIdle() {
@@ -127,9 +170,11 @@ export const useFieldStore = defineStore('field', {
       this.ncError = ''
       this.ncStatus = 'reading'
       try {
-        const frame = await parseNcFile(file, bbox, (s) => {
-          this.ncStatus = s
-        })
+        const frame = applyMaskContract(
+          await parseNcFile(file, bbox, (s) => {
+            this.ncStatus = s
+          }),
+        )
         this.cache.upload = frame
         this.uploaded = true
         this.activePack = 'upload'

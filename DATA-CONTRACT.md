@@ -19,7 +19,7 @@ type FieldFrame = {
   v: Float32Array
   kind?: FieldKind      // 样式由 kind 决定，禁止一套青点换标签
   scalar?: Float32Array // temp / precip 热幕·积水斑
-  mask?: Uint8Array    // 1=ocean/valid, 0=land/invalid；陆地 u/v=NaN
+  mask?: Uint8Array    // 仅 ocean：1=海/0=陆。temp|precip|wind 禁止带 mask
   meta: {
     source: 'demo' | 'live' | 'upload'
     vars: string[]
@@ -40,7 +40,8 @@ type FieldFrame = {
 | `live` | 后置 | OM / OSCAR / CMEMS → 同 FieldFrame；只换实现 |
 | `upload-nc` | 区域场 P0 | 用户 NC → Worker 解析 → FieldFrame |
 
-角标文案固定：**示例数据**（不说实况）。
+出处：页脚「示例 · 单帧」+ `meta.source=demo`。顶栏不放「示例数据」角标。  
+**mask 契约**：仅 `kind=ocean` 允许硬海 mask；`loadDemo` / `bindToGpu` 对 temp|precip|wind **强制丢 mask**。包侧这三类禁 `maskFile`。
 
 ## 3. 静态 DEMO 包布局
 
@@ -78,10 +79,10 @@ public/demo/
 
 | 效果 | 页 | 数据 |
 |------|----|------|
-| 风雾丝带 | 全球 / 预报台 | UV + 可选 mask |
-| 洋流水幕（仅海） | 区域场 | UV + **硬海洋 mask** |
-| 气温热幕 | 区域场/预报 | scalar 温度 |
-| 降雨积水斑 | 区域场 | scalar 降水（软斑渲染偏 UI） |
+| 风雾丝带 | 三页芯片；默认全球/预报台 | UV，**无 mask** |
+| 洋流水幕（仅海） | 三页芯片；默认区域场 | UV + **硬海洋 mask**（岸线可软 2–4px） |
+| 气温热幕 | 三页芯片 | scalar 全 bbox，**禁 mask** |
+| 降雨积水斑 | 三页芯片 | scalar 细线/积水斑，**禁 mask** |
 
 色：壳 `#0a1628` / 强调 `#5ac8e6`；禁彩虹色标（UI 锁）。
 
@@ -100,7 +101,7 @@ aether-demo-shell/
 
 ## 8. 开干验收（数据侧）
 
-- [ ] 三页默认 `demo` 均有流动，角标「示例数据」
+- [ ] 三页默认 `demo` 均有流动；页脚「示例 · 单帧」，顶栏无「示例数据」角标
 - [ ] 切 Tab 无 Long Task 卡死（pause 粒子 + 不拆 Map）
 - [ ] 静止粒子可达 30万+；拖动降档可恢复
 - [ ] 区域场可上传 NC → 同粒子/色幕通路；失败不崩

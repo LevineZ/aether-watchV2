@@ -97,7 +97,7 @@ export function applyCamera(page: keyof typeof CAMERAS) {
   const map = mapRuntime.map
   if (!map) return
   const c = CAMERAS[page]
-  applyBasemap(map, page)
+  applyBasemap(map, page, page === 'regional' ? 'ocean' : 'wind')
   lockBounds(page === 'regional' ? FIREFLY_BBOX : null, page)
   try {
     const want = c.globe ? 'globe' : 'mercator'

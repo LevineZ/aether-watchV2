@@ -1,3 +1,4 @@
+import type { FieldKind } from '@aether/field'
 import type { Map as MapLibreMap, StyleSpecification } from 'maplibre-gl'
 import maplibregl from 'maplibre-gl'
 import { PMTiles, Protocol } from 'pmtiles'
@@ -129,13 +130,13 @@ export function styleWithRegionalRaster(base: StyleSpecification): StyleSpecific
   return style
 }
 
-/** 仅 /regional：Firefly 暗色卫星 + 墨蓝半透蒙版。全球/desk 轻矢量，禁止整站真彩。 */
-export function applyBasemap(map: MapLibreMap | null, page: BasemapPage) {
+/** 风→矢量暗底；洋流→Firefly；气温/降雨→矢量（区域仍可叠 Firefly）。 */
+export function applyBasemap(map: MapLibreMap | null, page: BasemapPage, kind: FieldKind = 'wind') {
   if (!map) return
-  const regional = page === 'regional'
-  for (const id of REGIONAL_SHOW) vis(map, id, regional)
-  for (const id of REGIONAL_HIDE) vis(map, id, !regional)
-  if (regional) prefetchFirefly()
+  const firefly = kind === 'ocean' || (page === 'regional' && (kind === 'temp' || kind === 'precip'))
+  for (const id of REGIONAL_SHOW) vis(map, id, firefly)
+  for (const id of REGIONAL_HIDE) vis(map, id, !firefly)
+  if (firefly) prefetchFirefly()
 }
 
 export function prefetchFirefly() {
