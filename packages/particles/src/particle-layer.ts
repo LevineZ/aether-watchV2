@@ -70,7 +70,11 @@ function seedParticles(w: number, h: number): Uint8Array {
   return data
 }
 
-/** 硬海 mask 岸线软 1 格（约 2–4px @ 区域窗）。仅 ocean。 */
+/**
+ * 硬海 mask 岸线软 1 格（约 2–4px @ 区域窗）。仅 ocean。
+ * 契约 mask 是 1=海/0=陆；GPU 蓝通道必须是 0–255。若把 0/1 原样写入字节，
+ * shader `v_alive < 0.45` 会把全部海点当陆地丢掉，地球空转。
+ */
 function softenOceanMask(mask: Uint8Array, nx: number, ny: number): Uint8Array {
   const out = new Uint8Array(nx * ny)
   for (let y = 0; y < ny; y++) {
@@ -82,11 +86,11 @@ function softenOceanMask(mask: Uint8Array, nx: number, ny: number): Uint8Array {
           const yy = y + dy
           const xx = x + dx
           if (yy < 0 || yy >= ny || xx < 0 || xx >= nx) continue
-          s += mask[yy * nx + xx]
+          s += mask[yy * nx + xx] > 0 ? 1 : 0
           c++
         }
       }
-      out[y * nx + x] = Math.round(s / Math.max(1, c))
+      out[y * nx + x] = Math.round((s / Math.max(1, c)) * 255)
     }
   }
   return out
@@ -110,7 +114,7 @@ function fieldToRgba(frame: FieldFrame): { data: Uint8Array; uMin: number; uMax:
     const finite = Number.isFinite(u) && Number.isFinite(v)
     let aliveByte = 255
     if (oceanMask) {
-      const m = soft ? soft[i] : frame.mask ? frame.mask[i] * 255 : 255
+      const m = soft ? soft[i] : frame.mask ? (frame.mask[i] > 0 ? 255 : 0) : 255
       aliveByte = finite ? m : 0
     } else if (kind === 'wind') {
       aliveByte = finite ? 255 : 0
@@ -127,10 +131,20 @@ function fieldToRgba(frame: FieldFrame): { data: Uint8Array; uMin: number; uMax:
         : 0
     data[i4 + 3] = Math.max(0, Math.min(255, Math.round(s * 255)))
   }
+  if (oceanMask) {
+    let maxAlive = 0
+    for (let i = 0; i < n; i++) {
+      const b = data[i * 4 + 2]
+      if (b > maxAlive) maxAlive = b
+    }
+    if (maxAlive < 115) {
+      console.warn('[aether] ocean GPU mask byte too low', maxAlive, '— sea would discard')
+    }
+  }
   return { data, uMin: ur[0], uMax: ur[1], vMin: vr[0], vMax: vr[1] }
 }
 
-/** 关收 tip 默认平流 0.005。风 √(U²+V²)×0.50；洋流再压到 ×0.40。 */
+/** 关收 tip 默认平流 0.005。风 √(U²+V²)×0.50；洋流 √(U²+V²)×0.35–0.45。 */
 export const ADVECT_STEP = 0.0025
 export const KIND_LOOK: Record<
   FieldKind,
@@ -162,12 +176,12 @@ export const KIND_LOOK: Record<
   ocean: {
     style: 'currents',
     overlay: 'none',
-    speed: 0.8,
-    drop: 0.0022,
+    speed: 0.4,
+    drop: 0.0011,
     size: 2.9,
-    color: [0.58, 0.84, 0.93, 0.28],
-    ribbonDeg: 2.35,
-    ribbonPx: 6.2,
+    color: [0.494, 0.784, 0.91, 0.24],
+    ribbonDeg: 2.85,
+    ribbonPx: 6.6,
     uvScale: 1,
     pool: 'currents',
   },

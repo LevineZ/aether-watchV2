@@ -54,6 +54,11 @@ void main() {
   }
   if (dead) {
     pos = vec2(rand(v_uv + u_rand_seed), rand(v_uv.yx * 1.73 + u_rand_seed));
+    for (int i = 0; i < 8; i++) {
+      if (texture(u_wind, pos).b >= 0.45) break;
+      vec2 salt = pos + vec2(float(i) * 0.17, float(i) * 0.31) + u_rand_seed;
+      pos = vec2(rand(salt), rand(salt.yx * 1.73));
+    }
   }
   fragColor = encode(pos);
 }
