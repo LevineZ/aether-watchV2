@@ -6,9 +6,9 @@ import Logo from '@/components/Logo.vue'
 const t = useT()
 const router = useRouter()
 const cards = [
-  { to: '/global', titleKey: 'tabGlobal' as const, bodyKey: 'windFog' as const },
-  { to: '/desk', titleKey: 'tabDesk' as const, bodyKey: 'windFog' as const },
-  { to: '/regional', titleKey: 'tabRegional' as const, bodyKey: 'currents' as const },
+  { to: '/global', titleKey: 'tabGlobal' as const, bodyKey: 'aboutFeatGlobal' as const },
+  { to: '/desk', titleKey: 'tabDesk' as const, bodyKey: 'aboutFeatDesk' as const },
+  { to: '/regional', titleKey: 'tabRegional' as const, bodyKey: 'aboutFeatRegional' as const },
 ]
 </script>
 
@@ -21,11 +21,16 @@ const cards = [
       </div>
       <p class="lead">{{ t.aboutTitle }}</p>
       <p class="muted">{{ t.aboutLead }}</p>
+      <p class="panel-title feats-label">{{ t.aboutFeatures }}</p>
       <div class="cards">
         <button v-for="c in cards" :key="c.to" class="card" type="button" @click="router.push(c.to)">
           <h2>{{ t[c.titleKey] }}</h2>
           <p>{{ t[c.bodyKey] }}</p>
         </button>
+      </div>
+      <div class="notes">
+        <p class="panel-title">{{ t.aboutNotesTitle }}</p>
+        <p class="muted">{{ t.aboutNotes }}</p>
       </div>
       <button class="btn-primary cta" type="button" @click="router.push('/global')">{{ t.aboutCta }}</button>
       <p class="foot">{{ t.aboutFoot }}</p>
@@ -61,11 +66,14 @@ h1 {
   font-size: 18px;
   margin: 12px 0 6px;
 }
+.feats-label {
+  margin-top: 16px;
+}
 .cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  margin: 18px 0;
+  margin: 8px 0 16px;
 }
 .card {
   text-align: left;
@@ -82,6 +90,11 @@ h1 {
 .card p {
   margin: 0;
   color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.notes {
+  margin: 0 0 12px;
 }
 .cta {
   margin-top: 4px;

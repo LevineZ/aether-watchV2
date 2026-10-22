@@ -53,7 +53,7 @@ function pick(city: (typeof cities)[number]) {
       <p class="muted" style="margin-top: 12px">{{ t.livePlaceholder }}</p>
       <p class="src">
         <span class="dot" />
-        forecast/china · {{ field.frame?.nx }}×{{ field.frame?.ny }}
+        {{ field.activePack }} · {{ field.frame?.nx }}×{{ field.frame?.ny }}
       </p>
     </aside>
   </div>

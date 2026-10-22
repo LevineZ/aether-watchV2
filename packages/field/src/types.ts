@@ -29,10 +29,18 @@ export type FieldFrame = {
 
 export type DemoPackId =
   | 'global/wind'
+  | 'global/ocean'
+  | 'global/temp'
+  | 'global/precip'
+  | 'china/wind'
+  | 'china/temp'
+  | 'china/precip'
   | 'forecast/china'
   | 'regional/currents'
   | 'regional/temp'
   | 'regional/precip'
+
+export type PageId = 'global' | 'desk' | 'regional'
 
 export type PackMetaJson = {
   nx: number
@@ -67,24 +75,68 @@ export class NcUploadError extends Error {
 
 export const MAX_NC_BYTES = 100 * 1024 * 1024
 
-export const PAGE_PACK: Record<'global' | 'desk' | 'regional', DemoPackId> = {
+export const PAGE_PACK: Record<PageId, DemoPackId> = {
   global: 'global/wind',
-  desk: 'forecast/china',
+  desk: 'china/wind',
   regional: 'regional/currents',
 }
 
-export const PAGE_DEFAULT_KIND: Record<'global' | 'desk' | 'regional', FieldKind> = {
+export const PAGE_DEFAULT_KIND: Record<PageId, FieldKind> = {
   global: 'wind',
   desk: 'wind',
   regional: 'ocean',
 }
 
-/** 三页共用四要素包。区域无独立风包时回退预报台全国风。 */
-export function packForKind(page: 'global' | 'desk' | 'regional', kind: FieldKind): DemoPackId {
-  if (kind === 'wind') return page === 'global' ? 'global/wind' : 'forecast/china'
-  if (kind === 'ocean') return 'regional/currents'
-  if (kind === 'temp') return 'regional/temp'
-  return 'regional/precip'
+/**
+ * 页 × 要素 → DEMO 包。缺包返回 null（灰芯片 / 404），禁止跨页回退。
+ * Global 只绑 global/* 全球窗；Desk 只用 china/*；Desk 洋流无近岸包。
+ */
+export const PAGE_KIND_PACK: Record<PageId, Record<FieldKind, DemoPackId | null>> = {
+  global: {
+    wind: 'global/wind',
+    ocean: 'global/ocean',
+    temp: 'global/temp',
+    precip: 'global/precip',
+  },
+  desk: {
+    wind: 'china/wind',
+    ocean: null,
+    temp: 'china/temp',
+    precip: 'china/precip',
+  },
+  regional: {
+    wind: 'china/wind',
+    ocean: 'regional/currents',
+    temp: 'regional/temp',
+    precip: 'regional/precip',
+  },
+}
+
+export function packForKind(page: PageId, kind: FieldKind): DemoPackId | null {
+  return PAGE_KIND_PACK[page][kind]
+}
+
+/** Global 禁止区域 141×131 / regional/* / 东海窗。 */
+export function isRegionalStamp(packId: string, frame?: Pick<FieldFrame, 'nx' | 'ny' | 'bbox'>): boolean {
+  if (packId.includes('regional')) return true
+  if (!frame) return false
+  if (frame.nx === 141 && frame.ny === 131) return true
+  const [w, s, e, n] = frame.bbox
+  const lonSpan = e - w
+  const latSpan = n - s
+  const eastChina =
+    lonSpan < 30 && latSpan < 25 && w > 110 && e < 140 && s > 15 && n < 45
+  return eastChina
+}
+
+export function assertGlobalPack(packId: string, frame: Pick<FieldFrame, 'nx' | 'ny' | 'bbox'>): void {
+  if (isRegionalStamp(packId, frame)) {
+    throw new Error(`Global 禁止绑定区域包 ${packId}（${frame.nx}×${frame.ny}）`)
+  }
+  const lonSpan = frame.bbox[2] - frame.bbox[0]
+  if (lonSpan < 300 || frame.nx * frame.ny < 200_000) {
+    throw new Error(`Global 包须为全球窗 ~721×361，收到 ${packId} ${frame.nx}×${frame.ny} span=${lonSpan}`)
+  }
 }
 
 const PRECIP_VARS = new Set(['tp', 'precip', 'rain', 'precipitation', 'pr'])

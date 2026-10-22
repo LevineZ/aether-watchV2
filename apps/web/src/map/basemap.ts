@@ -133,7 +133,7 @@ export function styleWithRegionalRaster(base: StyleSpecification): StyleSpecific
 /** 风→矢量暗底；洋流→Firefly；气温/降雨→矢量（区域仍可叠 Firefly）。 */
 export function applyBasemap(map: MapLibreMap | null, page: BasemapPage, kind: FieldKind = 'wind') {
   if (!map) return
-  const firefly = kind === 'ocean' || (page === 'regional' && (kind === 'temp' || kind === 'precip'))
+  const firefly = page === 'regional' && (kind === 'ocean' || kind === 'temp' || kind === 'precip')
   for (const id of REGIONAL_SHOW) vis(map, id, firefly)
   for (const id of REGIONAL_HIDE) vis(map, id, !firefly)
   if (firefly) prefetchFirefly()

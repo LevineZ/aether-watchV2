@@ -1,9 +1,15 @@
 import { applyMaskContract } from './mask'
-import { inferKind, type DemoPackId, type FieldFrame, type PackMetaJson } from './types'
+import { assertGlobalPack, inferKind, type DemoPackId, type FieldFrame, type PackMetaJson } from './types'
 
 export const DEMO_PACK_BASE: Record<DemoPackId, string> = {
   'global/wind': '/demo/global/wind',
-  'forecast/china': '/demo/forecast/china',
+  'global/ocean': '/demo/global/ocean',
+  'global/temp': '/demo/global/temp',
+  'global/precip': '/demo/global/precip',
+  'china/wind': '/demo/china/wind',
+  'china/temp': '/demo/china/temp',
+  'china/precip': '/demo/china/precip',
+  'forecast/china': '/demo/china/wind',
   'regional/currents': '/demo/regional/currents',
   'regional/temp': '/demo/regional/temp',
   'regional/precip': '/demo/regional/precip',
@@ -40,6 +46,9 @@ export async function loadDemo(packId: DemoPackId | string): Promise<FieldFrame>
   const n = pack.nx * pack.ny
   if (!n) throw new Error(`${packId} 网格尺寸无效`)
 
+  if (String(packId).startsWith('global/')) {
+    assertGlobalPack(String(packId), pack)
+  }
   const kindHint = pack.kind ?? inferKind({ meta: pack.meta ?? { source: 'demo', vars: [], units: '' }, packId })
   const wantMask = kindHint === 'ocean' && !!pack.maskFile
   const [uBuf, vBuf, scalarBuf, maskBuf] = await Promise.all([

@@ -197,6 +197,128 @@ function chinaWind(nx, ny) {
   return { nx, ny, bbox, u, v }
 }
 
+function globalOcean(nx, ny, land) {
+  const bbox = [-180, -90, 180, 90]
+  const u = new Float32Array(nx * ny)
+  const v = new Float32Array(nx * ny)
+  const mask = new Uint8Array(nx * ny)
+  for (let iy = 0; iy < ny; iy++) {
+    for (let ix = 0; ix < nx; ix++) {
+      const [lon, lat] = cellLonLat(nx, ny, bbox, ix, iy)
+      const i = iy * nx + ix
+      if (isLand(land, lon, lat)) {
+        u[i] = Number.NaN
+        v[i] = Number.NaN
+        mask[i] = 0
+        continue
+      }
+      const phi = (lat * Math.PI) / 180
+      const gyre = 0.28 * Math.sin(((lon + 20) * Math.PI) / 90) * Math.sin(2 * phi)
+      const acc = 0.55 * Math.exp(-(((lat + 54) / 9) ** 2))
+      const eq = -0.32 * Math.exp(-((lat / 9) ** 2))
+      const gulf = 0.95 * Math.exp(-(((lon + 72) / 14) ** 2) - (((lat - 36) / 9) ** 2))
+      const kuro = 0.9 * Math.exp(-(((lon - 146) / 14) ** 2) - (((lat - 32) / 9) ** 2))
+      const agulhas = 0.55 * Math.exp(-(((lon - 28) / 12) ** 2) - (((lat + 34) / 8) ** 2))
+      u[i] =
+        (acc + eq + gyre + gulf * 0.35 + kuro * 0.3 + 0.08 * Math.sin((lat * Math.PI) / 18)) * 3.6
+      v[i] =
+        (0.18 * Math.cos(((lon - 30) * Math.PI) / 70) * Math.cos(phi) +
+          gulf * 0.55 +
+          kuro * 0.5 -
+          agulhas * 0.4 +
+          0.06 * Math.sin((lon * Math.PI) / 40)) *
+        3.6
+      mask[i] = 1
+    }
+  }
+  return { nx, ny, bbox, u, v, mask }
+}
+
+function globalTemp(nx, ny) {
+  const bbox = [-180, -90, 180, 90]
+  const u = new Float32Array(nx * ny)
+  const v = new Float32Array(nx * ny)
+  const scalar = new Float32Array(nx * ny)
+  for (let iy = 0; iy < ny; iy++) {
+    for (let ix = 0; ix < nx; ix++) {
+      const [lon, lat] = cellLonLat(nx, ny, bbox, ix, iy)
+      const i = iy * nx + ix
+      const colat = Math.cos((lat * Math.PI) / 180)
+      const desert = 7 * Math.exp(-(((lat - 23) / 14) ** 2)) * Math.exp(-(((Math.abs(lon) - 20) / 55) ** 2))
+      scalar[i] =
+        -20 +
+        58 * Math.pow(Math.max(0, colat), 1.05) +
+        desert +
+        4.5 * Math.sin(((lon + 2 * lat) * Math.PI) / 55) * colat
+      u[i] = 0
+      v[i] = 0
+    }
+  }
+  return { nx, ny, bbox, u, v, scalar }
+}
+
+function globalPrecip(nx, ny) {
+  const bbox = [-180, -90, 180, 90]
+  const u = new Float32Array(nx * ny)
+  const v = new Float32Array(nx * ny)
+  const scalar = new Float32Array(nx * ny)
+  for (let iy = 0; iy < ny; iy++) {
+    for (let ix = 0; ix < nx; ix++) {
+      const [lon, lat] = cellLonLat(nx, ny, bbox, ix, iy)
+      const i = iy * nx + ix
+      const itcz = 9 * Math.exp(-((lat / 9) ** 2)) * (0.55 + 0.45 * Math.sin(((lon - 40) * Math.PI) / 50))
+      const monsoon = 11 * Math.exp(-(((lon - 90) ** 2) / 1400 + ((lat - 18) ** 2) / 80))
+      const wpac = 8 * Math.exp(-(((lon - 135) ** 2) / 900 + ((lat - 12) ** 2) / 70))
+      const amazon = 7 * Math.exp(-(((lon + 62) ** 2) / 700 + ((lat + 4) ** 2) / 90))
+      scalar[i] = Math.max(0, itcz + monsoon + wpac + amazon - 1.8)
+      u[i] = 0
+      v[i] = 0
+    }
+  }
+  return { nx, ny, bbox, u, v, scalar }
+}
+
+function chinaTemp(base) {
+  const scalar = new Float32Array(base.nx * base.ny)
+  for (let iy = 0; iy < base.ny; iy++) {
+    for (let ix = 0; ix < base.nx; ix++) {
+      const [lon, lat] = cellLonLat(base.nx, base.ny, base.bbox, ix, iy)
+      const i = iy * base.nx + ix
+      scalar[i] = 26 - (lat - 20) * 0.85 + 2.4 * Math.sin(((lon - 100) * Math.PI) / 22)
+    }
+  }
+  return { ...base, scalar }
+}
+
+function chinaPrecip(base) {
+  const scalar = new Float32Array(base.nx * base.ny)
+  for (let iy = 0; iy < base.ny; iy++) {
+    for (let ix = 0; ix < base.nx; ix++) {
+      const [lon, lat] = cellLonLat(base.nx, base.ny, base.bbox, ix, iy)
+      const i = iy * base.nx + ix
+      scalar[i] = Math.max(
+        0,
+        14 * Math.exp(-(((lon - 113) ** 2 + (lat - 23.5) ** 2) / 18)) +
+          10 * Math.exp(-(((lon - 118) ** 2 + (lat - 31) ** 2) / 22)) +
+          7 * Math.exp(-(((lon - 104) ** 2 + (lat - 30) ** 2) / 28)),
+      )
+    }
+  }
+  return { ...base, scalar }
+}
+
+function assertPack(label, { nx, ny, bbox, kind, mask, maskFile }) {
+  if (kind === 'temp' || kind === 'precip') {
+    if (mask || maskFile) throw new Error(`${label} 禁止 mask.bin / maskFile`)
+  }
+  if (label.startsWith('global/')) {
+    const span = bbox[2] - bbox[0]
+    if (nx === 141 || ny === 131) throw new Error(`${label} 禁止 141×131`)
+    if (span < 300) throw new Error(`${label} 须为全球窗，bbox=${bbox}`)
+    if (nx < 700 || ny < 340) throw new Error(`${label} 分辨率须 ~721×361，收到 ${nx}×${ny}`)
+  }
+}
+
 function bilinearOscar(src, lon, lat) {
   const { lons, lats, u, v, mask, nx, ny } = src
   const dx = lons[1] - lons[0]
@@ -777,8 +899,11 @@ if (!fs.existsSync(oscarPath)) {
 const oscar = JSON.parse(fs.readFileSync(oscarPath, 'utf8'))
 
 ensureDir(demoRoot)
+const staleForecast = path.join(demoRoot, 'forecast')
+if (fs.existsSync(staleForecast)) fs.rmSync(staleForecast, { recursive: true, force: true })
 
 const gw = globalWind(721, 361)
+assertPack('global/wind', { ...gw, kind: 'wind' })
 pack(path.join(demoRoot, 'global', 'wind'), {
   ...gw,
   time: now,
@@ -787,13 +912,85 @@ pack(path.join(demoRoot, 'global', 'wind'), {
   units: 'm/s',
 })
 
+const go = globalOcean(721, 361, land)
+{
+  let ocean = 0
+  let landCells = 0
+  for (let i = 0; i < go.mask.length; i++) {
+    if (go.mask[i]) ocean++
+    else landCells++
+  }
+  if (!landCells || ocean < 8) {
+    throw new Error(`global/ocean 陆地无有效格检查失败 ocean=${ocean} land=${landCells}`)
+  }
+  console.log('global ocean', go.nx, 'x', go.ny, 'ocean', ocean, 'land', landCells)
+}
+assertPack('global/ocean', { ...go, kind: 'ocean' })
+pack(path.join(demoRoot, 'global', 'ocean'), {
+  ...go,
+  time: now,
+  kind: 'ocean',
+  vars: ['uo', 'vo'],
+  units: 'm/s',
+})
+
+const gt = globalTemp(721, 361)
+assertPack('global/temp', { ...gt, kind: 'temp', maskFile: null })
+pack(path.join(demoRoot, 'global', 'temp'), {
+  ...gt,
+  time: now,
+  kind: 'temp',
+  vars: ['t2m'],
+  units: 'degC',
+})
+
+const gp = globalPrecip(721, 361)
+assertPack('global/precip', { ...gp, kind: 'precip', maskFile: null })
+pack(path.join(demoRoot, 'global', 'precip'), {
+  ...gp,
+  time: now,
+  kind: 'precip',
+  vars: ['precip'],
+  units: 'mm',
+})
+
 const cw = chinaWind(249, 145)
-pack(path.join(demoRoot, 'forecast', 'china'), {
+pack(path.join(demoRoot, 'china', 'wind'), {
   ...cw,
   time: now,
   kind: 'wind',
   vars: ['u', 'v'],
   units: 'm/s',
+})
+
+const ct = chinaTemp(cw)
+assertPack('china/temp', { ...ct, kind: 'temp', maskFile: null })
+pack(path.join(demoRoot, 'china', 'temp'), {
+  nx: ct.nx,
+  ny: ct.ny,
+  bbox: ct.bbox,
+  u: ct.u,
+  v: ct.v,
+  scalar: ct.scalar,
+  time: now,
+  kind: 'temp',
+  vars: ['t2m'],
+  units: 'degC',
+})
+
+const cp = chinaPrecip(cw)
+assertPack('china/precip', { ...cp, kind: 'precip', maskFile: null })
+pack(path.join(demoRoot, 'china', 'precip'), {
+  nx: cp.nx,
+  ny: cp.ny,
+  bbox: cp.bbox,
+  u: cp.u,
+  v: cp.v,
+  scalar: cp.scalar,
+  time: now,
+  kind: 'precip',
+  vars: ['precip'],
+  units: 'mm',
 })
 
 const rc = regionalFromOscar(oscar, 141, 131, land)
@@ -872,11 +1069,16 @@ fs.writeFileSync(
 
 | 包 | 用途 |
 |----|------|
-| global/wind | 全球风雾 ~0.5°（721×361） |
-| forecast/china | 预报台全国 ≥0.25°（249×145） |
+| global/wind | 全球风雾 ~0.5°（721×361），全地球窗 |
+| global/ocean | 全球洋流 ~0.5° + 硬海 mask；禁绑区域 141×131 |
+| global/temp | 全球气温热幕 scalar，禁 maskFile |
+| global/precip | 全球降雨积水斑 scalar，禁 maskFile |
+| china/wind | 预报台全国风 ≥0.25°（249×145） |
+| china/temp | 预报台全国气温 scalar |
+| china/precip | 预报台全国降雨 scalar |
 | regional/currents | 区域场洋流：OSCAR 1/3° 气候态重采样 + 硬海洋 mask（示例数据） |
-| regional/temp | 气温热幕 scalar |
-| regional/precip | 降雨积水斑 scalar |
+| regional/temp | 区域气温热幕 scalar |
+| regional/precip | 区域降雨积水斑 scalar |
 | sample-currents.nc | NetCDF-3 上传试验（变量 uo/vo） |
 
 区域底图 \`public/basemap/regional/firefly.pmtiles\`（gitignore，演示机私有缓存）锁 Firefly 窗 \`[116.5,21,132.5,36]\`，仅 \`/regional\` 使用。
@@ -887,4 +1089,4 @@ await buildRegionalBasemap(land)
 
 console.log('demo packs written under public/demo')
 console.log(' sample nc bytes', fs.statSync(path.join(demoRoot, 'sample-currents.nc')).size)
-console.log(' china', cw.nx, 'x', cw.ny, 'global', gw.nx, 'x', gw.ny)
+console.log(' china', cw.nx, 'x', cw.ny, 'global', gw.nx, 'x', gw.ny, 'ocean', go.nx, 'x', go.ny)

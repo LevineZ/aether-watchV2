@@ -47,12 +47,9 @@ type FieldFrame = {
 
 ```
 public/demo/
-  global/wind/          # 全球风雾
-  forecast/china/       # 预报台全国（可复用现仓 china 合同 72×40）
-  forecast/{city}/      # 可选城包，先点选不自动切
-  regional/currents/    # 区域场洋流（仅海面 mask）
-  regional/temp/        # 气温热幕 scalar
-  regional/precip/      # 降雨积水斑 scalar
+  global/wind|ocean|temp|precip/   # 全球窗 ~721×361 / 0.5°；禁绑 regional 141×131
+  china/wind|temp|precip/          # 预报台全国。洋流无近岸包 → 灰芯片
+  regional/currents|temp|precip/   # 东海窗；岸线/DEM 走底图 PMTiles，不进 FieldFrame
 ```
 
 每包至少：`meta.json` + `frame-000.bin`（f32 interleaved 或分文件 u.bin/v.bin，README 写死一种）。
