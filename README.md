@@ -1,17 +1,98 @@
-# AetherWatch 演示轻仓（aether-demo-shell）
+# AetherWatch 演示轻仓
 
-墨蓝壳层 `#0a1628` + 克制青 `#5ac8e6` 的三页演示：全球风雾 / 预报台 / 区域场洋流。  
-**FieldFrame 是唯一场交换形状**。默认读 `public/demo/**` 静态包，角标固定为「示例数据」。无 Redis、无实况上游。
+*AetherWatch lite demo shell — institutional preview of global / forecast / regional fields.*
 
-设计与契约见仓库根目录 [`DESIGN.md`](./DESIGN.md)、[`DATA-CONTRACT.md`](./DATA-CONTRACT.md)。
+墨蓝壳 `#0a1628` + 克制青 `#5ac8e6`。给机构客户看**全球场 / 预报台 / 区域场**的观感对标，**不抄接口**。  
+场数据只走 **FieldFrame**，默认读 `public/demo/**` 静态包，`meta.source=demo`。无 Redis、无实况上游。
 
-## 一键运行（推荐）
+设计与契约：[`DESIGN.md`](./DESIGN.md)、[`DATA-CONTRACT.md`](./DATA-CONTRACT.md)。  
+基线 tip：[`b05163ac823d45a766a6dc730b9db87ae1d07bb7`](./SOURCE_TIP.txt)。
+
+---
+
+## 目的
+
+- **给谁看**：机构客户演示。对齐「全球场 / 预报台 / 区域场」指挥壳观感，不复刻对方接口或数据协议。
+- **现在用什么数据**：`public/demo/**` 静态包 → 统一 `FieldFrame`（`kind` + UV / scalar / mask + `meta.source`）。默认 `meta.source=demo`（区域洋流包为 `demo-oscar-clim`，仍属演示静态包）。
+- **不做什么**：不接 OM / OSCAR / CMEMS 真源；`loadLive` 仅占位，签名与 `loadDemo` 相同。密钥、`.env`、`*.pmtiles` 不进仓。
+
+---
+
+## 界面
+
+| 全球 · 风雾 | 预报台 · 全国风雾 |
+|:---:|:---:|
+| ![全球](docs/screenshots/global.png) | ![预报台](docs/screenshots/desk.png) |
+
+| 区域场 · 洋流 | 区域场 · 气温热幕 |
+|:---:|:---:|
+| ![区域场洋流](docs/screenshots/regional.png) | ![区域场气温](docs/screenshots/regional-temp.png) |
+
+截图取自 tip `b05163a` 本机演示（`127.0.0.1:8765`）。区域底图需机上 `pnpm generate` 烘焙 `firefly.pmtiles`；仓内不带该档。
+
+---
+
+## 功能（当前默认与限制）
+
+### 四 Tab
+
+| 路径 | 页 | 当前默认 |
+|------|----|----------|
+| `/global` | 全球 | 三维地球 + **风雾丝带**（`kind=wind`，`public/demo/global/wind`） |
+| `/desk`（`/forecast` 别名） | 预报台 | 全国平面窗 + **风雾丝带**（`kind=wind`，`public/demo/forecast/china`）；城市列表只飞相机，**不自动切城包** |
+| `/regional` | 区域场 | 东海窗 + **洋流水幕（仅海 mask）**（`kind=ocean`）；可切气温热幕 / 降雨积水斑 |
+| `/about` | 关于 | 无场；粒子暂停 |
+
+切 Tab **保留 Map/canvas**，先 pause 粒子再换场纹理；禁止拆球 + 主线程同步 decode。
+
+### 四要素（风 · 洋流 · 气温 · 降雨）
+
+| 要素 | 哪一页 | 现在怎么用 | 限制 |
+|------|--------|------------|------|
+| **风** | 全球、预报台 | 默认粒子丝带；密度默认 `0.48`，空闲峰值约 **40 万** GPU 粒子 | 单帧；时间轴不切时次 |
+| **洋流** | 区域场默认 | 粒子水幕 + **硬海洋 mask**；陆地 `u/v=NaN` | 单帧；窗锁 `[116.5,21,132.5,36]` |
+| **气温** | 仅区域场 overlay | 关粒子，叠 scalar 热幕（`regional/temp`） | 不进全球 / 预报台 |
+| **降雨** | 仅区域场 overlay | 关粒子，叠 scalar 积水斑（`regional/precip`） | 不进全球 / 预报台 |
+
+页脚固定：**示例数据 · 单帧场（无多时次，时间轴不切换）**。顶栏现有「示例数据」角标（计划去掉，见下）。下载按钮为壳层占位。
+
+### 底图与 Firefly
+
+- `/global`、`/desk`：轻量矢量（岸线 / 国界）+ 分级中文注记。禁止整站白天真彩。
+- **仅 `/regional`** 叠 Esri World Imagery Firefly 本地 PMTiles：`public/basemap/regional/firefly.pmtiles`，z5–10，maxBounds 锁窗 + 墨蓝半透蒙版。
+- `*.pmtiles` **gitignore，不进仓**。演示机执行 `pnpm generate` 私有烘焙；缺档时区域页仍走墨蓝矢量，不拉公网大图。运维可叠 `/opt/aether-demo-shell/public/basemap/regional/firefly.pmtiles`。
+- 生产若直连瓦片，用环境变量 `VITE_ESRI_API_KEY`（**密钥不进仓**）。归因：Esri, Maxar, Earthstar Geographics 等。批量离线烘焙进仓或公网分发可能违 Esri ToS。
+
+### DEMO 预热
+
+进入全球后约 600 ms 空闲预热：`forecast/china`、`regional/currents`、`regional/temp`、`regional/precip`。预热失败不打断演示。切 Tab 走缓存，避免同步 decode。
+
+### 端口与运行面
+
+服务固定 **8765**（`pnpm dev` / `pnpm preview` / Docker）。健康检查：`GET /health` → `{"status":"ok","service":"aether-demo-shell"}`。
+
+区域场可拖放 / 选择 `.nc`（≤100MB，Worker 解析；NetCDF-4/HDF5 会明确报错，需转 classic）。未上传时仍用演示包冒充流动。
+
+---
+
+## 未来要做
+
+- **观感**：三页粒子减速 × **0.45–0.6**，并降密（现默认偏快、偏密）。
+- **要素芯片**：统一四要素芯片分型（风 / 洋流 / 气温 / 降雨），不再只在区域场右下切换 overlay。
+- **角标**：去掉顶栏「示例数据」；**保留**页脚「示例数据 · 单帧」与 `meta.source=demo`。
+- **时间轴**：区域多时次 NC → 时间轴可切帧（现单帧、轴不切换）。
+- **真源**：`loadLive` 接 OM / OSCAR / CMEMS，只换 loader，不换 FieldFrame。OSCAR 后置。
+- **上线**：ICP 备案完成后挂域名。
+
+---
+
+## 一键运行
 
 ```bash
 docker compose up --build
 ```
 
-浏览器打开 `http://<主机>:8765`。健康检查：
+浏览器：`http://<主机>:8765`。
 
 ```bash
 curl -s http://127.0.0.1:8765/health
@@ -20,92 +101,41 @@ curl -s http://127.0.0.1:8765/health
 
 停止：`docker compose down`。
 
-## 本地无 Docker
+### 本地无 Docker
 
-需要 Node 20+ 与 pnpm：
+Node 20+ 与 pnpm：
 
 ```bash
 corepack enable
 pnpm install
-pnpm preview
-# 或开发：pnpm dev   （同样监听 8765，含 /health）
+pnpm preview          # generate + 构建 + 8765
+# 或：pnpm dev        # 同样 8765，含 /health
 ```
 
-`pnpm preview` = 生成 demo 包 + Vite 构建 + `apps/web/server.mjs` 服务于 **8765**。
+区域 Firefly 底图依赖本机 `pnpm generate` 写出 `firefly.pmtiles`（gitignore）。
 
-底图：`/global` 与 `/desk` 用轻量矢量（岸线/国界）+ 分级中文注记（远 11–12 / 近 13–14，`#c8d6e5`，描边 `#0a1628` 60%）。**仅 `/regional`** 叠 Esri World Imagery Firefly 本地 PMTiles（`public/basemap/regional/firefly.pmtiles`，窗 `[116.5,21,132.5,36]`，z5–10，maxBounds 锁窗）+ 墨蓝半透蒙版 `#0a1628`。禁止整站白天真彩。地名在 map style，不进 FieldFrame。粒子默认密度 0.48，注记压在场上并碰撞避让。
+### 腾讯云轻量（Ubuntu 22.04）
 
-Firefly **ToS**：批量离线烘焙进仓或公网分发可能违 Esri 条款。`firefly.pmtiles` **不进可分发仓**（gitignore），由演示机 `pnpm generate` 私有缓存；运维叠路径 `/opt/aether-demo-shell/public/basemap/regional/firefly.pmtiles`。生产若直连瓦片，用环境变量 `VITE_ESRI_API_KEY`（密钥不进仓）。归因：Esri, Maxar, Earthstar Geographics 等。
+1. 安装 Docker 与 Compose 插件后，`git clone` 本仓，`docker compose up -d --build`。
+2. 安全组 / ufw 放行 **TCP 8765**。
+3. 访问 `http://<公网IP>:8765`。容器只暴露 Web，不含 Redis / 数据库 / 多源预热。
 
-## 腾讯云轻量应用服务器（Ubuntu 22.04）
+---
 
-以一台干净的 Lighthouse Ubuntu 22.04 为例。
-
-1. **安装 Docker 与 Compose 插件**
-
-```bash
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-sudo usermod -aG docker $USER
-# 重新登录后再执行后续命令
-```
-
-2. **拉代码并启动**
-
-```bash
-git clone <本仓库> aether-demo-shell
-cd aether-demo-shell
-docker compose up -d --build
-docker compose ps
-curl -s http://127.0.0.1:8765/health
-```
-
-3. **放行端口**
-
-- 控制台 → 防火墙 / 安全组 → 入站放行 **TCP 8765**。
-- 本机如开了 ufw：`sudo ufw allow 8765/tcp && sudo ufw reload`。
-
-4. 访问 `http://<公网IP>:8765`。
-
-容器只暴露 Web（含 `/health`），**不包含 Redis、数据库或多源预热**。
-
-## 路由
-
-| 路径 | 页 |
-|------|----|
-| `/global` | 全球 · 风雾丝带 |
-| `/desk`（`/forecast` 别名） | 预报台 · 全国风雾 |
-| `/regional` | 区域场 · 洋流水幕（仅海）+ 暗色卫星底图 |
-| `/about` | 关于 |
-
-切 Tab **保留 Map/canvas**，先 pause 粒子再换场纹理；禁止拆球 + 主线程同步 decode。拖动停平流但计数保持峰值；松手回到约 40 万 GPU 粒子并按当前相机重投。气温/降雨切 overlay 面（关粒子丝带）。
-
-## Demo 包格式（唯一）
+## Demo 包格式
 
 `public/demo/<包>/`：
 
-- `meta.json`
-- `u.bin` / `v.bin`：Float32 **little-endian**，长度 `nx*ny`，行主序 **south → north**
+- `meta.json`（含 `kind`、`meta.source`）
+- `u.bin` / `v.bin`：Float32 little-endian，长度 `nx*ny`，行主序 **south → north**
 - 可选 `scalar.bin`（f32）、`mask.bin`（Uint8，1=海洋/有效）
 
-前端禁止直读各源私有 JSON。NC 上传走 Web Worker，变量映射 `u|ugrd|uo` × `v|vgrd|vo`；NetCDF-4/HDF5 会明确报错（需转 classic）。示例文件：`/demo/sample-currents.nc`。
-
-重新生成静态包：`pnpm generate`。
-
-## 目录
+前端禁止直读各源私有 JSON。重新生成：`pnpm generate`。
 
 ```
 apps/web/              Vue3 + Vite + MapLibre
 packages/field/        loadDemo / loadLive(stub) / parseNcFile
 packages/particles/    GPU 粒子层 + LOD
 public/demo/           静态场包
+docs/screenshots/      README 界面截图
 ```
-
-`loadLive` 仅占位，签名与 `loadDemo` 相同，不请求 OM/OSCAR。
-
-来源 tip：[`b05163ac823d45a766a6dc730b9db87ae1d07bb7`](./SOURCE_TIP.txt)（见 `SOURCE_TIP.txt`）。
