@@ -1,0 +1,28 @@
+{
+  "nx": 249,
+  "ny": 145,
+  "bbox": [
+    73,
+    18,
+    135,
+    54
+  ],
+  "time": "2026-10-21T00:00:00Z",
+  "kind": "wind",
+  "uFile": "u.bin",
+  "vFile": "v.bin",
+  "scalarFile": null,
+  "maskFile": null,
+  "meta": {
+    "source": "demo",
+    "vars": [
+      "u",
+      "v"
+    ],
+    "units": "m/s",
+    "fill": 9999,
+    "rowOrder": "south-north",
+    "endian": "le",
+    "dtype": "float32"
+  }
+}

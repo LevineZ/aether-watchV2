@@ -1,0 +1,27 @@
+{
+  "nx": 141,
+  "ny": 131,
+  "bbox": [
+    117.5,
+    22,
+    131.5,
+    35
+  ],
+  "time": "2026-10-21T00:00:00Z",
+  "kind": "temp",
+  "uFile": "u.bin",
+  "vFile": "v.bin",
+  "scalarFile": "scalar.bin",
+  "maskFile": "mask.bin",
+  "meta": {
+    "source": "demo",
+    "vars": [
+      "sst"
+    ],
+    "units": "degC",
+    "fill": 9999,
+    "rowOrder": "south-north",
+    "endian": "le",
+    "dtype": "float32"
+  }
+}

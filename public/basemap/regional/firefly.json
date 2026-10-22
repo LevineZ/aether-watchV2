@@ -1,0 +1,23 @@
+{
+  "name": "firefly",
+  "source": "Esri World Imagery Firefly",
+  "tiles": "https://fly.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Firefly/MapServer/tile/{z}/{y}/{x}",
+  "bbox": [
+    116.5,
+    21,
+    132.5,
+    36
+  ],
+  "minzoom": 5,
+  "maxzoom": 10,
+  "prefetch": [
+    6,
+    7,
+    8
+  ],
+  "path": "/basemap/regional/firefly.pmtiles",
+  "opsPath": "/opt/aether-demo-shell/public/basemap/regional/firefly.pmtiles",
+  "attribution": "Esri, Maxar, Earthstar Geographics 等",
+  "tos": "批量离线烘焙进仓或公网分发可能违 Esri ToS。演示机私有本地缓存（本文件旁 firefly.pmtiles，gitignore）。生产直连备 Esri key，密钥不进仓。",
+  "note": "pnpm generate 在演示机烘焙。缺档时区域页仍走墨蓝矢量，不拉公网大图。"
+}

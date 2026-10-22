@@ -1,0 +1,22 @@
+{
+  "name": "aether-demo-shell",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AetherWatch 演示轻仓：三页场可视化壳，FieldFrame 唯一交换形状",
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate-demo-packs.mjs",
+    "dev": "pnpm generate && pnpm --filter @aether/web dev",
+    "build": "pnpm generate && pnpm --filter @aether/web build",
+    "start": "node apps/web/server.mjs",
+    "preview": "pnpm build && PORT=8765 HOST=0.0.0.0 node apps/web/server.mjs",
+    "typecheck": "pnpm --filter @aether/web typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.14.0",
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}

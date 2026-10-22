@@ -1,0 +1,28 @@
+{
+  "nx": 141,
+  "ny": 131,
+  "bbox": [
+    117.5,
+    22,
+    131.5,
+    35
+  ],
+  "time": "2013-01-16T00:00:00Z",
+  "kind": "ocean",
+  "uFile": "u.bin",
+  "vFile": "v.bin",
+  "scalarFile": null,
+  "maskFile": "mask.bin",
+  "meta": {
+    "source": "demo-oscar-clim",
+    "vars": [
+      "uo",
+      "vo"
+    ],
+    "units": "m/s",
+    "fill": 9999,
+    "rowOrder": "south-north",
+    "endian": "le",
+    "dtype": "float32"
+  }
+}

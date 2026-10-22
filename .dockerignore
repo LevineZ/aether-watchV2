@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.cursor
+uploads
+*.log
+.vite
+.pnpm-store
+terminals
