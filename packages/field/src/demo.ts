@@ -1,5 +1,12 @@
 import { applyMaskContract } from './mask'
-import { assertGlobalPack, inferKind, type DemoPackId, type FieldFrame, type PackMetaJson } from './types'
+import {
+  assertGlobalPack,
+  inferKind,
+  isGlobalDemoPack,
+  type DemoPackId,
+  type FieldFrame,
+  type PackMetaJson,
+} from './types'
 
 export const DEMO_PACK_BASE: Record<DemoPackId, string> = {
   'global/wind': '/demo/global/wind',
@@ -46,7 +53,7 @@ export async function loadDemo(packId: DemoPackId | string): Promise<FieldFrame>
   const n = pack.nx * pack.ny
   if (!n) throw new Error(`${packId} 网格尺寸无效`)
 
-  if (String(packId).startsWith('global/')) {
+  if (isGlobalDemoPack(String(packId))) {
     assertGlobalPack(String(packId), pack)
   }
   const kindHint = pack.kind ?? inferKind({ meta: pack.meta ?? { source: 'demo', vars: [], units: '' }, packId })
@@ -75,5 +82,9 @@ export async function loadDemo(packId: DemoPackId | string): Promise<FieldFrame>
   if (scalarBuf) frame.scalar = asF32(scalarBuf, n, 'scalar.bin')
   frame.kind = pack.kind ?? inferKind({ ...frame, packId })
   if (frame.kind === 'ocean' && maskBuf) frame.mask = asU8(maskBuf, n, 'mask.bin')
-  return applyMaskContract(frame)
+  const out = applyMaskContract(frame)
+  if (isGlobalDemoPack(String(packId))) {
+    assertGlobalPack(String(packId), out)
+  }
+  return out
 }

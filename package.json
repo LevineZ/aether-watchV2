@@ -10,7 +10,8 @@
     "build": "pnpm generate && pnpm --filter @aether/web build",
     "start": "node apps/web/server.mjs",
     "preview": "pnpm build && PORT=8765 HOST=0.0.0.0 node apps/web/server.mjs",
-    "typecheck": "pnpm --filter @aether/web typecheck"
+    "typecheck": "pnpm --filter @aether/web typecheck",
+    "test:field": "node --experimental-strip-types --test packages/field/src/*.test.ts"
   },
   "engines": {
     "node": ">=20"

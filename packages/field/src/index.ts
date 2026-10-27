@@ -7,6 +7,7 @@ export {
   PAGE_KIND_PACK,
   PAGE_PACK,
   packForKind,
+  isGlobalDemoPack,
   isRegionalStamp,
   assertGlobalPack,
 } from './types'
