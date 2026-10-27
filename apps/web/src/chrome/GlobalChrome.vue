@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { FieldFrame } from '@aether/field'
 import { useFieldStore } from '@/stores/field'
+import { useUiStore } from '@/stores/ui'
 import { useT } from '@/i18n'
 import { mapRuntime } from '@/map/runtime'
 import Sparkline from '@/components/Sparkline.vue'
@@ -8,6 +10,7 @@ import WindLegend from '@/components/WindLegend.vue'
 import FieldChips from '@/components/FieldChips.vue'
 
 const field = useFieldStore()
+const ui = useUiStore()
 const t = useT()
 
 const spark = computed(() => {
@@ -15,12 +18,58 @@ const spark = computed(() => {
   return Array.from({ length: 24 }, (_, i) => 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(i / 3 + m)))
 })
 
-const cards = computed(() => [
-  { k: t.value.meanWind, v: `${(field.stats?.meanSpeed ?? 0).toFixed(1)} m/s` },
-  { k: t.value.maxGust, v: `${(field.stats?.maxSpeed ?? 0).toFixed(1)} m/s` },
-  { k: t.value.coverage, v: `${Math.round((field.stats?.coverage ?? 0) * 100)}%` },
-  { k: t.value.particles, v: field.frame ? '400k GPU' : '—' },
-])
+function scalarSummary(frame: FieldFrame | null): { mean: number; max: number } {
+  if (!frame?.scalar) return { mean: 0, max: 0 }
+  const s = frame.scalar
+  const mask = frame.mask
+  let sum = 0
+  let max = -Infinity
+  let n = 0
+  for (let i = 0; i < s.length; i++) {
+    if (mask && mask[i] === 0) continue
+    const v = s[i]
+    if (!Number.isFinite(v)) continue
+    n++
+    sum += v
+    if (v > max) max = v
+  }
+  return { mean: n ? sum / n : 0, max: Number.isFinite(max) ? max : 0 }
+}
+
+const cards = computed(() => {
+  const coverage = `${Math.round((field.stats?.coverage ?? 0) * 100)}%`
+  const kind = ui.kind
+  if (kind === 'temp') {
+    const { mean, max } = scalarSummary(field.frame)
+    return [
+      { k: t.value.meanTemp, v: `${mean.toFixed(1)} °C` },
+      { k: t.value.maxTemp, v: `${max.toFixed(1)} °C` },
+      { k: t.value.coverage, v: coverage },
+    ]
+  }
+  if (kind === 'precip') {
+    const { mean, max } = scalarSummary(field.frame)
+    return [
+      { k: t.value.meanPrecip, v: `${mean.toFixed(1)} mm` },
+      { k: t.value.maxPrecip, v: `${max.toFixed(1)} mm` },
+      { k: t.value.coverage, v: coverage },
+    ]
+  }
+  if (kind === 'ocean') {
+    return [
+      { k: t.value.meanCurrent, v: `${(field.stats?.meanSpeed ?? 0).toFixed(2)} m/s` },
+      { k: t.value.maxCurrent, v: `${(field.stats?.maxSpeed ?? 0).toFixed(2)} m/s` },
+      { k: t.value.coverage, v: coverage },
+      { k: t.value.particles, v: field.frame ? '400k GPU' : '—' },
+    ]
+  }
+  return [
+    { k: t.value.meanWind, v: `${(field.stats?.meanSpeed ?? 0).toFixed(1)} m/s` },
+    { k: t.value.maxGust, v: `${(field.stats?.maxSpeed ?? 0).toFixed(1)} m/s` },
+    { k: t.value.coverage, v: coverage },
+    { k: t.value.particles, v: field.frame ? '400k GPU' : '—' },
+  ]
+})
 
 function fly(center: [number, number], zoom: number) {
   mapRuntime.map?.easeTo({ center, zoom, duration: 800 })

@@ -184,15 +184,15 @@ void main() {
   vec2 dir = vel / vmax;
   float dlen = length(dir);
   vec2 ndir = dlen > 1e-5 ? dir / dlen : vec2(1.0, 0.0);
-  float minLen = u_style > 0.5 ? 0.35 : 0.18;
-  float trail = max(u_ribbon_deg, u_style > 0.5 ? 2.4 : 1.6) * max(dlen, minLen);
+  float minLen = u_style > 0.5 ? 0.35 : 0.24;
+  float trail = max(u_ribbon_deg, u_style > 0.5 ? 2.4 : 2.2) * max(dlen, minLen);
   vec2 lonlat = fieldLonLat(pos, u_bbox);
   vec2 head = lonlat;
   vec2 tail = lonlat - ndir * trail;
   vec2 perp = vec2(-ndir.y, ndir.x);
   float halfW = u_style > 0.5
     ? max(0.07, u_ribbon_px * (u_wrap > 0.5 ? 0.085 : 0.045))
-    : max(0.04, u_ribbon_px * (u_wrap > 0.5 ? 0.085 : 0.042));
+    : max(0.018, u_ribbon_px * (u_wrap > 0.5 ? 0.048 : 0.026));
   vec2 sampleLL = mix(head, tail, along) + perp * side * halfW;
   v_along = along;
   gl_Position = projectTile(mercator(sampleLL));
@@ -225,10 +225,10 @@ void main() {
   float alpha = mix(fog * 0.88, core * 0.8, u_style);
   alpha *= smoothstep(0.0, 0.045, v_edge);
   vec3 frost = vec3(0.722, 0.878, 0.941);
-  vec3 mist = vec3(0.75, 0.90, 0.98);
+  vec3 mist = vec3(0.91, 0.957, 1.0);
   vec3 rgb = u_style > 0.5
     ? mix(u_color.rgb, frost, clamp(v_speed / 1.4, 0.0, 1.0))
-    : mix(u_color.rgb, mist, clamp(v_speed / 24.0, 0.0, 0.55));
+    : mix(u_color.rgb, mist, clamp(v_speed / 24.0, 0.0, 0.22));
   fragColor = vec4(rgb, u_color.a * alpha);
 }
 `
@@ -252,10 +252,10 @@ void main() {
     vec3 rgb = mix(u_color.rgb, frost, clamp(v_speed / 1.4, 0.0, 1.0));
     fragColor = vec4(rgb, u_color.a * 0.95 * fade * edge);
   } else {
-    float fade = mix(1.0, 0.22, v_along);
-    float widthFade = 1.0 - smoothstep(0.4, 1.0, abs(v_side));
-    vec3 mist = vec3(0.75, 0.90, 0.98);
-    vec3 rgb = mix(u_color.rgb, mist, clamp(v_speed / 24.0, 0.0, 0.45));
+    float fade = mix(1.0, 0.38, v_along);
+    float widthFade = 1.0 - smoothstep(0.35, 1.0, abs(v_side));
+    vec3 mist = vec3(0.91, 0.957, 1.0);
+    vec3 rgb = mix(u_color.rgb, mist, clamp(v_speed / 24.0, 0.0, 0.18));
     fragColor = vec4(rgb, u_color.a * fade * widthFade * edge);
   }
 }
@@ -345,7 +345,7 @@ void main() {
       : t < 0.50 ? mix(c1, c2, (t - 0.25) / 0.25)
       : t < 0.75 ? mix(c2, c3, (t - 0.50) / 0.25)
       : mix(c3, c4, (t - 0.75) / 0.25);
-    float a = mix(0.48, 0.60, smoothstep(0.0, 1.0, t));
+    float a = mix(0.34, 0.48, smoothstep(0.0, 1.0, t));
     color = vec4(c, a);
   }
   color.a *= edge;
