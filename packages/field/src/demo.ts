@@ -48,8 +48,17 @@ export async function loadDemo(packId: DemoPackId | string): Promise<FieldFrame>
   if (!base) throw new Error(`未知 demo 包: ${packId}`)
 
   const metaRes = await fetch(`${base}/meta.json`)
-  if (!metaRes.ok) throw new Error(`读取 ${packId} meta.json 失败`)
-  const pack = (await metaRes.json()) as PackMetaJson
+  if (!metaRes.ok) throw new Error(`读取 ${packId} meta.json 失败 (${metaRes.status})`)
+  const contentType = metaRes.headers.get('content-type') ?? ''
+  if (contentType.includes('text/html')) {
+    throw new Error(`读取 ${packId} meta.json 失败 (404)`)
+  }
+  let pack: PackMetaJson
+  try {
+    pack = (await metaRes.json()) as PackMetaJson
+  } catch {
+    throw new Error(`读取 ${packId} meta.json 失败`)
+  }
   const n = pack.nx * pack.ny
   if (!n) throw new Error(`${packId} 网格尺寸无效`)
 
