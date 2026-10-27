@@ -147,8 +147,10 @@ function fieldToRgba(frame: FieldFrame): { data: Uint8Array; uMin: number; uMax:
   return { data, uMin: ur[0], uMax: ur[1], vMin: vr[0], vMax: vr[1] }
 }
 
-/** 关收 tip 默认平流 0.005。风 √(U²+V²)×0.45；洋流 √(U²+V²)×0.35–0.45。 */
+/** 关收 tip 默认平流 0.005。风 √(U²+V²)×0.18 全球 / ×0.09 预报台·区域；洋流冻结 ×0.40。 */
 export const ADVECT_STEP = 0.0025
+/** Desk/regional wind is slower than the globe so a national window does not swarm. */
+export const WIND_DESK_SPEED_SCALE = 0.5
 export const KIND_LOOK: Record<
   FieldKind,
   {
@@ -167,12 +169,12 @@ export const KIND_LOOK: Record<
   wind: {
     style: 'wind-fog',
     overlay: 'wind',
-    speed: 0.45,
-    drop: 0.0013,
-    size: 1.1,
-    color: [0.91, 0.957, 1.0, 0.3],
-    ribbonDeg: 5.6,
-    ribbonPx: 1.15,
+    speed: 0.18,
+    drop: 0.00055,
+    size: 0.85,
+    color: [0.91, 0.957, 1.0, 0.22],
+    ribbonDeg: 6.8,
+    ribbonPx: 0.58,
     uvScale: 1,
     pool: 'wind',
   },
@@ -408,9 +410,12 @@ export class ParticleLayer {
     this.pool = look.pool
     const lonSpan = Math.abs(this.bbox[2] - this.bbox[0])
     this.wrap = lonSpan > 350 ? 1 : 0
+    if (kind === 'wind' && this.wrap < 0.5) {
+      this.speed = look.speed * WIND_DESK_SPEED_SCALE
+    }
     if (this.wrap) {
-      // Ocean freeze c794d1b length. Wind: modest wrap boost so thinner strands still read long.
-      this.ribbonDeg = look.ribbonDeg * (kind === 'ocean' ? 5.2 : 4.8)
+      // Ocean freeze c794d1b length. Wind: keep long fine strands, not globe-spanning sheets.
+      this.ribbonDeg = look.ribbonDeg * (kind === 'ocean' ? 5.2 : 3.6)
     }
     if (kind === 'temp' || kind === 'precip') {
       this.advecting = false
