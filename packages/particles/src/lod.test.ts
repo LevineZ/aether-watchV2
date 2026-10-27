@@ -11,4 +11,11 @@ describe('n ∝ 1/zoom²', () => {
     assert.ok(g > d)
     assert.ok(g > 8_000)
   })
+
+  test('ocean freeze ignores zoom mul', () => {
+    const a = visualCount({ ocean: true, regionalWindow: true, density: 0.48, zoom: 1.35 })
+    const b = visualCount({ ocean: true, regionalWindow: true, density: 0.48, zoom: 6.2 })
+    assert.equal(a, b)
+    assert.equal(a, Math.floor(14_000 * 0.48))
+  })
 })

@@ -31,7 +31,8 @@ export function visualCount(opts: {
   zoom?: number
 }): number {
   const d = Math.max(0.2, Math.min(1, opts.density))
+  // 风丝 n∝1/zoom²；洋流冻结密度，不跟 zoom 走。
+  if (opts.ocean) return Math.floor((opts.regionalWindow ? 14_000 : 36_000) * d)
   const zMul = zoomCountMul(opts.zoom ?? ZOOM_REF)
-  if (opts.ocean) return Math.floor((opts.regionalWindow ? 14_000 : 36_000) * d * zMul)
   return Math.floor((opts.regionalWindow ? 18_000 : 72_000) * d * zMul)
 }
