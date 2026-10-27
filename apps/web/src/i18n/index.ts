@@ -89,6 +89,8 @@ export const dict = {
     lodPeak: '峰值',
     emptyNc: '未上传时使用区域场演示包冒充流动',
     singleFrame: '示例 · 单帧场（无多时次，时间轴不切换）',
+    deskAxis: '预报时次（示意，00h）',
+    demoPrecipNote: '墨湾 / 印尼雨斑为 DEMO，非实况雷达',
   },
   en: {
     brand: 'AetherWatch',
@@ -177,6 +179,8 @@ export const dict = {
     lodPeak: 'Peak',
     emptyNc: 'No file: regional demo pack still flows',
     singleFrame: 'Sample · single frame (timeline does not switch)',
+    deskAxis: 'Forecast hours (schematic, 00h)',
+    demoPrecipNote: 'Gulf / Indonesia rain patches are DEMO, not live radar',
   },
 } as const
 

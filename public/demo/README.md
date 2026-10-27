@@ -14,7 +14,7 @@
 | global/wind | 全球风雾 ~0.5°（721×361），全地球窗 |
 | global/ocean | 全球洋流 ~0.5° + 硬海 mask；禁绑区域 141×131 |
 | global/temp | 全球气温热幕 scalar，禁 maskFile |
-| global/precip | 全球降雨积水斑 scalar，禁 maskFile |
+| global/precip | 全球降雨积水斑 scalar（墨湾/印尼 DEMO 雨斑），禁 maskFile |
 | china/wind | 预报台全国风 ≥0.25°（249×145） |
 | china/temp | 预报台全国气温 scalar |
 | china/precip | 预报台全国降雨 scalar |

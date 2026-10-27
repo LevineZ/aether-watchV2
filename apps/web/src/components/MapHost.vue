@@ -5,9 +5,11 @@ import { ParticleLayer } from '@aether/particles'
 import { mapStyle, PLACE_BEFORE_ID } from '@/map/style'
 import { mapRuntime, applyCamera } from '@/map/runtime'
 import { addRegionalRaster, applyBasemap, ensurePmtilesProtocol, styleWithRegionalRaster } from '@/map/basemap'
+import { ensureTyphoonOverlay, showTyphoonOverlay } from '@/map/typhoon'
 import { useUiStore } from '@/stores/ui'
 import { useFieldStore } from '@/stores/field'
 import { useT } from '@/i18n'
+import DemoBadge from './DemoBadge.vue'
 
 const root = ref<HTMLElement | null>(null)
 const ui = useUiStore()
@@ -41,11 +43,13 @@ onMounted(() => {
   map.on('load', () => {
     if (map) addRegionalRaster(map)
     map?.addLayer(particles, PLACE_BEFORE_ID)
+    if (map) ensureTyphoonOverlay(map, PLACE_BEFORE_ID)
     mapRuntime.particles = particles
     particles.setDensity(ui.density)
     map?.resize()
     applyCamera(ui.page)
     applyBasemap(map, ui.page, ui.kind)
+    showTyphoonOverlay(map, ui.page === 'global')
     syncParticles()
     particles.resume()
     field.preloadIdle()
@@ -59,6 +63,7 @@ watch(
   () => [ui.page, ui.kind, field.frame] as const,
   () => {
     if (map) applyBasemap(map, ui.page, ui.kind)
+    showTyphoonOverlay(map, ui.page === 'global')
     syncParticles()
   },
 )
@@ -77,39 +82,17 @@ onBeforeUnmount(() => {
 <template>
   <div class="map-wrap">
     <div class="map-host" ref="root" />
-    <div v-if="ui.page === 'regional' && ui.kind === 'ocean'" class="corner" aria-hidden="true">
-      <span class="attr">{{ t.basemapAttr }}</span>
-    </div>
+    <DemoBadge />
     <div v-if="field.status === 'loading'" class="toast glass">{{ t.loading }}</div>
     <div v-else-if="field.status === 'error'" class="toast glass err">
       {{ t.error }}：{{ field.error }}
-      <button class="btn-ghost" type="button" @click="field.showPage(ui.page)">{{ t.retry }}</button>
+      <button class="btn-primary" type="button" @click="field.showPage(ui.page)">{{ t.retry }}</button>
+      <button class="btn-ghost" type="button" @click="field.selectKind('wind')">{{ t.chipWind }}</button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.corner {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3;
-  pointer-events: none;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--primary);
-  border: 1px solid var(--panel-border);
-  background: var(--map-veil);
-  border-radius: var(--radius-pill);
-  padding: 3px 10px;
-}
-.attr {
-  margin-left: 8px;
-  color: var(--ink-muted);
-  letter-spacing: 0.02em;
-  font-size: 10px;
-}
 .toast {
   position: absolute;
   top: 12px;

@@ -53,7 +53,17 @@ export const mapStyle = {
     {
       id: 'bg',
       type: 'background',
-      paint: { 'background-color': '#0b1a2e' },
+      paint: { 'background-color': '#13243B' },
+    },
+    {
+      id: 'land',
+      type: 'fill',
+      source: 'land',
+      maxzoom: 2.8,
+      paint: {
+        'fill-color': '#13243B',
+        'fill-opacity': ['interpolate', ['linear'], ['zoom'], 1.1, 1, 2.6, 0],
+      },
     },
     {
       id: 'water',
@@ -63,21 +73,23 @@ export const mapStyle = {
       paint: { 'fill-color': '#0a1628' },
     },
     {
-      id: 'land',
-      type: 'fill',
-      source: 'land',
+      id: 'coast-line',
+      type: 'line',
+      source: 'openmaptiles',
+      'source-layer': 'water',
       paint: {
-        'fill-color': '#13243B',
-        'fill-opacity': 1,
+        'line-color': 'rgba(90,200,230,0.42)',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.35, 3, 0.7, 6, 1.15, 9, 1.6],
       },
     },
     {
       id: 'land-line',
       type: 'line',
       source: 'land',
+      maxzoom: 2.6,
       paint: {
-        'line-color': 'rgba(90,200,230,0.22)',
-        'line-width': 0.8,
+        'line-color': 'rgba(90,200,230,0.18)',
+        'line-width': 0.55,
       },
     },
     {

@@ -48,14 +48,7 @@ function fireflyArchiveUrl() {
 }
 
 function fireflyTiles(): string[] {
-  const liveKey = (import.meta.env.VITE_ESRI_API_KEY as string | undefined)?.trim()
-  if (liveKey) {
-    return [
-      `https://fly.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Firefly/MapServer/tile/{z}/{y}/{x}?token=${encodeURIComponent(liveKey)}`,
-    ]
-  }
-  // 必须走 tiles[]：MapLibre raster 的 url=TileJSON 不会稳定进 pmtiles 协议，
-  // 角标归因可以有、prefetch Range 也可以有，图层树却不向瓦片取纹。
+  // 细岸 A = WGS84 矢量岸线。禁高德 Key；不把 Esri Firefly 当地图默认。
   return [`pmtiles://${fireflyArchiveUrl()}/{z}/{x}/{y}`]
 }
 
@@ -130,13 +123,11 @@ export function styleWithRegionalRaster(base: StyleSpecification): StyleSpecific
   return style
 }
 
-/** 风→矢量暗底；洋流→Firefly；气温/降雨→矢量（区域仍可叠 Firefly）。 */
-export function applyBasemap(map: MapLibreMap | null, page: BasemapPage, kind: FieldKind = 'wind') {
+/** 三页均细岸 A（WGS84 矢量）。不配高德 Key，不默启卫星。 */
+export function applyBasemap(map: MapLibreMap | null, _page: BasemapPage, _kind: FieldKind = 'wind') {
   if (!map) return
-  const firefly = page === 'regional' && (kind === 'ocean' || kind === 'temp' || kind === 'precip')
-  for (const id of REGIONAL_SHOW) vis(map, id, firefly)
-  for (const id of REGIONAL_HIDE) vis(map, id, !firefly)
-  if (firefly) prefetchFirefly()
+  for (const id of REGIONAL_SHOW) vis(map, id, false)
+  for (const id of REGIONAL_HIDE) vis(map, id, true)
 }
 
 export function prefetchFirefly() {

@@ -15,9 +15,23 @@ export function lodCount(level: LodLevel): number {
   return LOD[level]
 }
 
-/** 默认观感：全球远景细丝 ~28–38k / 预报台更稀 / 洋流冻结不变。密度滑条 0.2–1。 */
-export function visualCount(opts: { ocean: boolean; regionalWindow: boolean; density: number }): number {
+const ZOOM_REF = 1.35
+
+/** n∝1/zoom²：远景更密、近景更稀。密度滑条 0.2–1。气温/降雨走 count=0，不走这里。 */
+export function zoomCountMul(zoom: number): number {
+  const z = Math.max(0.85, zoom)
+  return Math.max(0.14, Math.min(1.25, (ZOOM_REF / z) ** 2))
+}
+
+/** 默认观感：全球远景细丝 ~28–38k / 预报台更稀 / 洋流冻结不变。 */
+export function visualCount(opts: {
+  ocean: boolean
+  regionalWindow: boolean
+  density: number
+  zoom?: number
+}): number {
   const d = Math.max(0.2, Math.min(1, opts.density))
-  if (opts.ocean) return Math.floor((opts.regionalWindow ? 14_000 : 36_000) * d)
-  return Math.floor((opts.regionalWindow ? 18_000 : 72_000) * d)
+  const zMul = zoomCountMul(opts.zoom ?? ZOOM_REF)
+  if (opts.ocean) return Math.floor((opts.regionalWindow ? 14_000 : 36_000) * d * zMul)
+  return Math.floor((opts.regionalWindow ? 18_000 : 72_000) * d * zMul)
 }

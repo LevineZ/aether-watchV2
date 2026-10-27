@@ -1,4 +1,12 @@
-import { inferKind, uvRange, scalarRange, type FieldFrame, type FieldKind } from '@aether/field'
+import {
+  inferKind,
+  uvRange,
+  scalarRange,
+  speedPercentileRange,
+  unitInterval,
+  type FieldFrame,
+  type FieldKind,
+} from '@aether/field'
 import { PARTICLE_TEX, visualCount, type LodLevel } from './lod'
 import {
   DRAW_FS,
@@ -97,7 +105,15 @@ function softenOceanMask(mask: Uint8Array, nx: number, ny: number): Uint8Array {
   return out
 }
 
-function fieldToRgba(frame: FieldFrame): { data: Uint8Array; uMin: number; uMax: number; vMin: number; vMax: number } {
+function fieldToRgba(frame: FieldFrame): {
+  data: Uint8Array
+  uMin: number
+  uMax: number
+  vMin: number
+  vMax: number
+  speedLo: number
+  speedHi: number
+} {
   const kind = inferKind(frame)
   const oceanMask = kind === 'ocean'
   const { u: ur, v: vr } = uvRange(frame)
@@ -107,6 +123,7 @@ function fieldToRgba(frame: FieldFrame): { data: Uint8Array; uMin: number; uMax:
   const uSpan = ur[1] - ur[0] || 1
   const vSpan = vr[1] - vr[0] || 1
   const sSpan = sr[1] - sr[0] || 1
+  const [speedLo, speedHi] = kind === 'wind' ? speedPercentileRange(frame) : [0, 1]
   const soft = oceanMask && frame.mask ? softenOceanMask(frame.mask, frame.nx, frame.ny) : null
   for (let i = 0; i < n; i++) {
     const i4 = i * 4
@@ -125,8 +142,8 @@ function fieldToRgba(frame: FieldFrame): { data: Uint8Array; uMin: number; uMax:
     data[i4 + 2] = aliveByte
     let packedScalar = 0
     if (kind === 'wind') {
-      // Same-pack |UV| curtain. Do not read a temperature scalar under wind.
-      packedScalar = finite ? Math.hypot(u, v) / 24 : 0
+      // Same-pack |UV| curtain, field p05–p95. Never a second (temp) pack; never /24.
+      packedScalar = finite ? unitInterval(Math.hypot(u, v), speedLo, speedHi) : 0
     } else if (frame.scalar) {
       packedScalar = Number.isFinite(frame.scalar[i]) ? (frame.scalar[i] - sr[0]) / sSpan : 0
     } else {
@@ -144,13 +161,15 @@ function fieldToRgba(frame: FieldFrame): { data: Uint8Array; uMin: number; uMax:
       console.warn('[aether] ocean GPU mask byte too low', maxAlive, '— sea would discard')
     }
   }
-  return { data, uMin: ur[0], uMax: ur[1], vMin: vr[0], vMax: vr[1] }
+  return { data, uMin: ur[0], uMax: ur[1], vMin: vr[0], vMax: vr[1], speedLo, speedHi }
 }
 
-/** 关收 tip 默认平流 0.005。风 √(U²+V²)×0.18 全球 / ×0.09 预报台·区域；洋流冻结 ×0.40。 */
+/** 关收 tip 默认平流 0.005。风丝全球 ×0.18 / 预报台·区域 ×0.09；洋流冻结 ×0.40。 */
 export const ADVECT_STEP = 0.0025
-/** Desk/regional wind is slower than the globe so a national window does not swarm. */
-export const WIND_DESK_SPEED_SCALE = 0.5
+export const WIND_SPEED_GLOBAL = 0.18
+export const WIND_SPEED_DESK = 0.09
+/** @deprecated 用 WIND_SPEED_DESK / WIND_SPEED_GLOBAL */
+export const WIND_DESK_SPEED_SCALE = WIND_SPEED_DESK / WIND_SPEED_GLOBAL
 export const KIND_LOOK: Record<
   FieldKind,
   {
@@ -169,12 +188,12 @@ export const KIND_LOOK: Record<
   wind: {
     style: 'wind-fog',
     overlay: 'wind',
-    speed: 0.18,
+    speed: WIND_SPEED_GLOBAL,
     drop: 0.00055,
     size: 0.85,
     color: [0.91, 0.957, 1.0, 0.22],
-    ribbonDeg: 6.8,
-    ribbonPx: 0.58,
+    ribbonDeg: 7.4,
+    ribbonPx: 0.62,
     uvScale: 1,
     pool: 'wind',
   },
@@ -250,6 +269,7 @@ export class ParticleLayer {
   private uMax = 10
   private vMin = -10
   private vMax = 10
+  private speedRef = 12
   private lod: LodLevel = 'peak'
   private wrap = 1
   private style: FieldStyle = 'wind-fog'
@@ -411,7 +431,7 @@ export class ParticleLayer {
     const lonSpan = Math.abs(this.bbox[2] - this.bbox[0])
     this.wrap = lonSpan > 350 ? 1 : 0
     if (kind === 'wind' && this.wrap < 0.5) {
-      this.speed = look.speed * WIND_DESK_SPEED_SCALE
+      this.speed = WIND_SPEED_DESK
     }
     if (this.wrap) {
       // Ocean freeze c794d1b length. Wind: keep long fine strands, not globe-spanning sheets.
@@ -463,6 +483,7 @@ export class ParticleLayer {
       ocean: this.kind === 'ocean',
       regionalWindow: this.wrap < 0.5,
       density: this.density,
+      zoom: this.map?.getZoom() ?? 1.35,
     })
   }
 
@@ -479,6 +500,7 @@ export class ParticleLayer {
     this.uMax = packed.uMax
     this.vMin = packed.vMin
     this.vMax = packed.vMax
+    this.speedRef = Math.max(0.4, packed.speedHi - packed.speedLo)
     g.bindTexture(g.TEXTURE_2D, this.windTex)
     g.pixelStorei(g.UNPACK_ALIGNMENT, 1)
     g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR)
@@ -700,6 +722,7 @@ export class ParticleLayer {
     g.uniform2f(g.getUniformLocation(this.drawProg, 'u_wind_max'), this.uMax, this.vMax)
     g.uniform4f(g.getUniformLocation(this.drawProg, 'u_color'), this.color[0], this.color[1], this.color[2], this.color[3])
     g.uniform1f(g.getUniformLocation(this.drawProg, 'u_style'), this.style === 'currents' ? 1 : 0)
+    g.uniform1f(g.getUniformLocation(this.drawProg, 'u_speed_ref'), this.speedRef)
     g.drawArrays(g.POINTS, 0, count)
   }
 
@@ -731,6 +754,7 @@ export class ParticleLayer {
     g.uniform1f(g.getUniformLocation(this.lineProg, 'u_min_trail'), this.size * (this.wrap ? 16 : 6.5))
     g.uniform1f(g.getUniformLocation(this.lineProg, 'u_wrap'), this.wrap)
     g.uniform1f(g.getUniformLocation(this.lineProg, 'u_style'), this.style === 'currents' ? 1 : 0)
+    g.uniform1f(g.getUniformLocation(this.lineProg, 'u_speed_ref'), this.speedRef)
     g.uniform4f(g.getUniformLocation(this.lineProg, 'u_color'), this.color[0], this.color[1], this.color[2], this.color[3])
     g.drawArrays(g.TRIANGLES, 0, ribbonCount * 6)
   }

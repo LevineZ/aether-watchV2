@@ -193,7 +193,8 @@ void main() {
   float halfW = u_style > 0.5
     ? max(0.07, u_ribbon_px * (u_wrap > 0.5 ? 0.085 : 0.045))
     : max(0.018, u_ribbon_px * (u_wrap > 0.5 ? 0.048 : 0.026));
-  vec2 sampleLL = mix(head, tail, along) + perp * side * halfW;
+  float curl = u_style > 0.5 ? 0.0 : 0.16 * sin(id * 0.41 + along * 2.4) * halfW;
+  vec2 sampleLL = mix(head, tail, along) + perp * (side * halfW + curl);
   v_along = along;
   gl_Position = projectTile(mercator(sampleLL));
 }
@@ -211,6 +212,7 @@ export const DRAW_FS = `#version 300 es
 precision mediump float;
 uniform vec4 u_color;
 uniform float u_style;
+uniform float u_speed_ref;
 in float v_speed;
 in float v_alive;
 in float v_edge;
@@ -226,9 +228,10 @@ void main() {
   alpha *= smoothstep(0.0, 0.045, v_edge);
   vec3 frost = vec3(0.722, 0.878, 0.941);
   vec3 mist = vec3(0.91, 0.957, 1.0);
+  float nrm = clamp(v_speed / max(u_speed_ref, 0.4), 0.0, 1.0);
   vec3 rgb = u_style > 0.5
     ? mix(u_color.rgb, frost, clamp(v_speed / 1.4, 0.0, 1.0))
-    : mix(u_color.rgb, mist, clamp(v_speed / 24.0, 0.0, 0.22));
+    : mix(u_color.rgb, mist, nrm * 0.28);
   fragColor = vec4(rgb, u_color.a * alpha);
 }
 `
@@ -237,6 +240,7 @@ export const LINE_FS = `#version 300 es
 precision highp float;
 uniform vec4 u_color;
 uniform float u_style;
+uniform float u_speed_ref;
 in float v_alive;
 in float v_along;
 in float v_edge;
@@ -255,7 +259,8 @@ void main() {
     float fade = mix(1.0, 0.38, v_along);
     float widthFade = 1.0 - smoothstep(0.35, 1.0, abs(v_side));
     vec3 mist = vec3(0.91, 0.957, 1.0);
-    vec3 rgb = mix(u_color.rgb, mist, clamp(v_speed / 24.0, 0.0, 0.18));
+    float nrm = clamp(v_speed / max(u_speed_ref, 0.4), 0.0, 1.0);
+    vec3 rgb = mix(u_color.rgb, mist, nrm * 0.22);
     fragColor = vec4(rgb, u_color.a * fade * widthFade * edge);
   }
 }
@@ -321,7 +326,7 @@ void main() {
     vec3 c = t < 0.33 ? mix(blue, cyan, t / 0.33)
       : t < 0.66 ? mix(cyan, yellow, (t - 0.33) / 0.33)
       : mix(yellow, red, (t - 0.66) / 0.34);
-    float a = mix(0.46, 0.62, smoothstep(0.0, 1.0, t));
+    float a = mix(0.5, 0.7, smoothstep(0.0, 1.0, t));
     color = vec4(c, a);
   } else if (u_mode < 1.5) {
     float wet = smoothstep(0.0, 1.0, t);
@@ -345,7 +350,7 @@ void main() {
       : t < 0.50 ? mix(c1, c2, (t - 0.25) / 0.25)
       : t < 0.75 ? mix(c2, c3, (t - 0.50) / 0.25)
       : mix(c3, c4, (t - 0.75) / 0.25);
-    float a = mix(0.34, 0.48, smoothstep(0.0, 1.0, t));
+    float a = mix(0.4, 0.58, smoothstep(0.0, 1.0, t));
     color = vec4(c, a);
   }
   color.a *= edge;

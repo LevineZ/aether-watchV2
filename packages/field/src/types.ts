@@ -7,6 +7,9 @@ export type BBox = [west: number, south: number, east: number, north: number]
 /** 四种场：样式由 kind 决定，禁止一套青点换标签。 */
 export type FieldKind = 'wind' | 'ocean' | 'temp' | 'precip'
 
+/** 气温色阶 50→−40（shader 0–1 映射此窗）。 */
+export const TEMP_SCALAR_RANGE: [number, number] = [-40, 50]
+
 export type FieldFrame = {
   nx: number
   ny: number
@@ -19,12 +22,15 @@ export type FieldFrame = {
   /** 1=ocean/valid, 0=land/invalid */
   mask?: Uint8Array
   kind?: FieldKind
-  meta: {
-    source: FieldSource
-    vars: string[]
-    units: string
-    fill?: number
-  }
+    meta: {
+      source: FieldSource
+      vars: string[]
+      units: string
+      fill?: number
+      /** DEMO 标：演示雨斑等，非实况。 */
+      demo?: boolean
+      note?: string
+    }
 }
 
 export type DemoPackId =
