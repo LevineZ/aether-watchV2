@@ -17,6 +17,8 @@ uniform vec2 u_wind_max;
 uniform float u_rand_seed;
 uniform float u_speed;
 uniform float u_advect;
+uniform float u_step;
+uniform float u_speed_ref;
 uniform float u_uv_scale;
 uniform float u_drop_rate;
 uniform float u_wrap;
@@ -58,7 +60,10 @@ void main() {
     pos.x += (vel.x / vmax) * u_speed * u_advect * 0.32;
     dead = wtex.a < u_wet_min || r < drop * 1.6;
   } else {
-    pos += (vel / vmax) * (u_advect * u_speed * u_uv_scale);
+    float mag = length(vel);
+    vec2 dir = mag > 1e-5 ? vel / mag : vec2(0.0);
+    float nrm = clamp(mag / max(u_speed_ref, 0.4), 0.0, 2.2);
+    pos += dir * nrm * u_step * u_uv_scale;
     dead = mask < 0.45 || r < drop;
   }
   if (u_wrap > 0.5) {

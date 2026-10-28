@@ -6,9 +6,10 @@ describe('Ventusky-like wind silk', () => {
   test('slow fade + thin low-alpha stamps, not teleporting ribbons', () => {
     const src = readFileSync(new URL('./particle-layer.ts', import.meta.url), 'utf8')
     assert.match(src, /TRAIL_FADE = 0\.995/)
-    assert.match(src, /TRAIL_GAIN = 0\.78/)
+    assert.match(src, /TRAIL_GAIN = 0\.88/)
     assert.match(src, /drop: 0\.00008/)
-    assert.match(src, /size: 1\.35/)
+    assert.match(src, /size: 1\.6/)
+    assert.match(src, /trailStepUv/)
     assert.match(src, /Do not reseed on idle/)
   })
 })

@@ -183,7 +183,10 @@ export const ADVECT_STEP = 0.0024
 export const WIND_SPEED_GLOBAL = 0.22
 export const WIND_SPEED_DESK = 0.085
 export const TRAIL_FADE = 0.995
-export const TRAIL_GAIN = 0.78
+export const TRAIL_GAIN = 0.88
+/** Screen pixels per frame at |vel| = speedRef. Overlap the 1.6px stamp so silk is continuous. */
+export const TRAIL_TARGET_PX = 1.7
+export const OCEAN_TARGET_PX = 1.15
 /** @deprecated 用 WIND_SPEED_DESK / WIND_SPEED_GLOBAL */
 export const WIND_DESK_SPEED_SCALE = WIND_SPEED_DESK / WIND_SPEED_GLOBAL
 
@@ -214,8 +217,8 @@ export const KIND_LOOK: Record<
     overlay: 'wind',
     speed: WIND_SPEED_GLOBAL,
     drop: 0.00008,
-    size: 1.35,
-    color: [0.93, 0.97, 1.0, 0.34],
+    size: 1.6,
+    color: [0.93, 0.97, 1.0, 0.42],
     ribbonDeg: 5.8,
     ribbonPx: 0.72,
     uvScale: 1,
@@ -643,6 +646,15 @@ export class ParticleLayer {
     this.applyKindLook(inferKind(frame))
   }
 
+  /** UV delta that moves a p95 particle ~TRAIL_TARGET_PX on the current view. */
+  private trailStepUv(): number {
+    const canvas = this.map?.getCanvas()
+    const w = Math.max(1, canvas?.width ?? 1440)
+    const du = Math.max(1e-4, this.viewUv[2] - this.viewUv[0])
+    const target = this.kind === 'ocean' ? OCEAN_TARGET_PX : TRAIL_TARGET_PX
+    return target / (w / du)
+  }
+
   private viewLonSpan(): number {
     const map = this.map
     if (!map) return this.wrap ? 360 : Math.abs(this.bbox[2] - this.bbox[0])
@@ -857,6 +869,8 @@ export class ParticleLayer {
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_rand_seed'), Math.random())
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_speed'), this.speed * this.speedMul)
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_advect'), ADVECT_STEP)
+    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_step'), this.trailStepUv())
+    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_speed_ref'), this.speedRef)
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_uv_scale'), this.uvScale)
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_drop_rate'), this.drop)
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_wrap'), this.wrap)
