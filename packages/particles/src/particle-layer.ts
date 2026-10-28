@@ -197,9 +197,11 @@ export const ADVECT_DEG_SCALE = 8.5
 export const WIND_SPEED_GLOBAL = 0.18
 export const WIND_SPEED_DESK = 0.09
 export const TRAIL_FADE = 0.96
-export const TRAIL_FADE_OCEAN = 0.88
+export const TRAIL_FADE_OCEAN = 0.93
 export const TRAIL_DECAY = 0.002
-export const TRAIL_DECAY_OCEAN = 0.006
+export const TRAIL_DECAY_OCEAN = 0.003
+/** Ocean UV is ~cm/s; extra scale keeps silk visible while still 0.4× wind speed coeff. */
+export const OCEAN_ADVECT_MUL = 5
 export const TRAIL_CAP = 0.45
 export const TRAIL_GAIN = 0.92
 export const KIND_SWITCH_MS = 200
@@ -252,7 +254,7 @@ export const KIND_LOOK: Record<
     speed: WIND_SPEED_GLOBAL * 0.4,
     drop: 0.00012,
     size: 0.78,
-    color: [0.498, 0.831, 0.91, 0.38],
+    color: [0.498, 0.831, 0.91, 0.55],
     ribbonDeg: 3.2,
     ribbonPx: 7.2,
     uvScale: 1,
@@ -920,7 +922,10 @@ export class ParticleLayer {
       : 1 / 60
     this.lastAdvectAt = now
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_dt'), dt)
-    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_advect_scale'), ADVECT_DEG_SCALE)
+    g.uniform1f(
+      g.getUniformLocation(this.updateProg, 'u_advect_scale'),
+      ADVECT_DEG_SCALE * (this.kind === 'ocean' ? OCEAN_ADVECT_MUL : 1),
+    )
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_drop_rate'), this.drop)
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_wrap'), this.wrap)
     g.uniform4f(
