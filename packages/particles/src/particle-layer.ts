@@ -183,7 +183,7 @@ function fieldToRgba(frame: FieldFrame): {
  *
  * | kind   | 主视觉原语                                      | 是否粒子                         | 禁止                                      |
  * |--------|-------------------------------------------------|----------------------------------|-------------------------------------------|
- * | wind   | 水彩色幕 + FBO 0.96 青金风速丝（严禁白丝）         | 是                               | 白丝；#FFFFFF；色幕同 LUT 面条；静电雪花     |
+ * | wind   | 色幕 α=0.5 + FBO 0.93 半透明白丝（2–3万 / 1%重生） | 是                               | 刷墙死线；静电雪花；粗不透明白墙             |
  * | temp   | 256×1 LINEAR LUT 平滑热幕 + 场双线性             | 否（count=0 且 particlePass=off） | 任何粒子；斑块/噪声；硬边色带               |
  * | precip | 低周波 fbm 雨团：噪声调 alpha + LUT 采样位      | 否                               | 均匀色幕；脏噪点雾；风场粒子层              |
  * | ocean  | 霜蓝短丝 + FS mask discard，仅海面                | 是（0.4× 风速，极稀）            | 上陆；复用 wind 参数；白色/暖色粒子         |
@@ -194,10 +194,11 @@ function fieldToRgba(frame: FieldFrame): {
 export const ADVECT_STEP = 0.0024
 /** Degrees of lon at equator per (m/s) at speed=1, dt=1. ~4px/frame @ 12 m/s global. */
 export const ADVECT_DEG_SCALE = 28
-export const WIND_SPEED_GLOBAL = 0.18
-export const WIND_SPEED_DESK = 0.09
-/** Wind FBO trail fade. Trails live ~1s; length = vel × scale, not a segment cap. */
-export const TRAIL_FADE = 0.96
+/** 0.18 × 2.5 — silk must visibly streak, not sit as a contour plate. */
+export const WIND_SPEED_GLOBAL = 0.45
+export const WIND_SPEED_DESK = 0.225
+/** Wind FBO fade. 0.93 ⇒ tails die in ~1–2s; only live runners remain. */
+export const TRAIL_FADE = 0.93
 export const TRAIL_FADE_OCEAN = 0.93
 export const TRAIL_DECAY = 0.001
 export const TRAIL_DECAY_OCEAN = 0.003
@@ -206,7 +207,8 @@ export const OCEAN_ADVECT_MUL = 5
 export const TRAIL_CAP = 0.5
 export const TRAIL_GAIN = 0.95
 export const KIND_SWITCH_MS = 200
-export const TRAIL_TARGET_PX = 0.92
+export const TRAIL_LINE_WIDTH = 0.5
+export const TRAIL_TARGET_PX = 0.5
 export const OCEAN_TARGET_PX = 1.84
 
 export function usesParticlePass(kind: FieldKind): boolean {
@@ -241,9 +243,9 @@ export const KIND_LOOK: Record<
     style: 'wind-fog',
     overlay: 'wind',
     speed: WIND_SPEED_GLOBAL,
-    drop: 0.0008,
-    size: 1.3,
-    color: [0.09, 0.75, 0.82, 0.5],
+    drop: 0.01,
+    size: 1,
+    color: [1, 1, 1, 0.22],
     ribbonDeg: 5.8,
     ribbonPx: 0.72,
     uvScale: 1,
@@ -294,8 +296,8 @@ export type ParticleLayerOptions = {
 /**
  * MapLibre CustomLayer：GPU 粒子。
  * - 粒子 UV 只活在 FieldFrame.bbox 内；每帧用当前相机 defaultProjectionData 重绑，禁止缓存 world→UV。
- * - 空闲 peak≈40 万；拖动停平流、计数不砍；松手 peak + 重投。
- * - wind：水彩色幕 + FBO 0.96 青→金风速丝。严禁白丝。丝色不跟色幕 LUT。每帧 0.08% 重生。
+ * - 空闲屏上 2–3 万；拖动停平流；松手重投。
+ * - wind：色幕 α=0.5 在最底 + FBO 0.93 半透明白丝。头 1px，线 0.5px α=0.1–0.3。每帧 1% 重生。
  * - temp：256×1 LINEAR LUT 热幕。particlePass=off，count=0。
  * - precip：低周波 fbm 雨团。particlePass=off，无雨丝。
  * - ocean：霜蓝短丝（#7FD4E8）+ FS 海 mask discard，不上陆。
@@ -995,7 +997,7 @@ export class ParticleLayer {
       this.color[2],
       this.color[3],
     )
-    g.lineWidth(1)
+    g.lineWidth(TRAIL_LINE_WIDTH)
     g.drawArrays(g.LINES, 0, count * 2)
   }
 

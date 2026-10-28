@@ -383,18 +383,6 @@ export const LINE_VS = makeRibbonVS(FALLBACK_PRELUDE, '')
 export const TRAIL_LINE_VS = makeTrailLineVS(FALLBACK_PRELUDE, '')
 export const makeLineVS = makeRibbonVS
 
-const SILK_RAMP = `
-// Wind filament only: cool teal → amber by |UV|. Never white, never the curtain LUT.
-vec3 silkRamp(float t) {
-  t = clamp(t, 0.0, 1.0);
-  vec3 cool = vec3(0.16, 0.42, 0.92);
-  vec3 teal = vec3(0.10, 0.84, 0.76);
-  vec3 amber = vec3(0.96, 0.52, 0.10);
-  if (t < 0.5) return mix(cool, teal, t * 2.0);
-  return mix(teal, amber, (t - 0.5) * 2.0);
-}
-`
-
 export const DRAW_FS = `#version 300 es
 precision mediump float;
 uniform vec4 u_color;
@@ -406,7 +394,6 @@ in float v_alive;
 in float v_edge;
 in float v_kind;
 out vec4 fragColor;
-${SILK_RAMP}
 void main() {
   if (v_alive < 0.45 && v_kind < 2.5) discard;
   if (v_kind > 2.5 && v_alive < 0.06) discard;
@@ -421,8 +408,9 @@ void main() {
   if (v_kind > 0.5 && v_kind < 1.5) {
     a *= mix(0.5, 0.95, nrm);
   } else {
-    rgb = silkRamp(nrm);
-    a *= mix(0.12, 1.0, nrm);
+    // wind: 1px bright white head. silk body is the trail, not this point.
+    rgb = vec3(1.0);
+    a = mix(0.45, 0.9, nrm) * core * edge;
   }
   fragColor = vec4(rgb * a, a);
 }
@@ -438,7 +426,6 @@ in float v_speed;
 in float v_kind;
 in vec2 v_fieldUv;
 out vec4 fragColor;
-${SILK_RAMP}
 void main() {
   float mask = texture(u_wind, v_fieldUv).b;
   float nrm = clamp(v_speed / max(u_speed_ref, 0.4), 0.0, 1.0);
@@ -451,9 +438,9 @@ void main() {
     return;
   }
   if (mask < 0.45) discard;
-  // wind: teal→amber silk by speed. never white, never curtain LUT isolines.
-  vec3 rgb = silkRamp(nrm);
-  float a = u_color.a * mix(0.1, 1.0, nrm);
+  // wind: thin translucent white silk. alpha locked 0.1–0.3. never opaque wall.
+  vec3 rgb = vec3(1.0);
+  float a = mix(0.1, 0.3, nrm);
   fragColor = vec4(rgb * a, a);
 }
 `
@@ -626,7 +613,7 @@ void main() {
     rgb = lutRgb(t);
     float luma = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
     rgb = mix(vec3(luma), rgb, 0.5);
-    alpha = 0.3;
+    alpha = 0.5;
   } else {
     // ocean: frost-blue LUT * hard sea mask. land alpha = 0.
     rgb = lutRgb(t);

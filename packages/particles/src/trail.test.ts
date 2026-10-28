@@ -2,16 +2,18 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, test } from 'node:test'
 
-describe('GPGPU teal-amber silk advection', () => {
-  test('FBO fade 0.96, long life, visible step', () => {
+describe('GPGPU Ventusky-thin white silk', () => {
+  test('FBO fade 0.93, 1% respawn, 2.5× speed, 0.5px lines', () => {
     const src = readFileSync(new URL('./particle-layer.ts', import.meta.url), 'utf8')
-    assert.match(src, /TRAIL_FADE = 0\.96/)
+    assert.match(src, /TRAIL_FADE = 0\.93/)
     assert.match(src, /TRAIL_FADE_OCEAN = 0\.93/)
     assert.match(src, /TRAIL_DECAY = 0\.001/)
-    assert.match(src, /WIND_SPEED_GLOBAL = 0\.18/)
-    assert.match(src, /WIND_SPEED_DESK = 0\.09/)
+    assert.match(src, /WIND_SPEED_GLOBAL = 0\.45/)
+    assert.match(src, /WIND_SPEED_DESK = 0\.225/)
     assert.match(src, /ADVECT_DEG_SCALE = 28/)
-    assert.match(src, /drop: 0\.0008/)
+    assert.match(src, /drop: 0\.01/)
+    assert.match(src, /TRAIL_LINE_WIDTH = 0\.5/)
+    assert.match(src, /g\.lineWidth\(TRAIL_LINE_WIDTH\)/)
     assert.match(src, /g\.drawArrays\(g\.LINES, 0, count \* 2\)/)
     assert.match(src, /this\.drawParticles\(g, matrix, count\)/)
     const shaders = readFileSync(new URL('./shaders.ts', import.meta.url), 'utf8')
@@ -24,22 +26,19 @@ describe('GPGPU teal-amber silk advection', () => {
     assert.match(shaders, /uniform sampler2D u_prev/)
   })
 
-  test('wind stamps teal→amber silk, never #FFFFFF and never curtain LUT isolines', () => {
+  test('wind silk is thin translucent white; curtain α=0.5 sits under particles', () => {
     const src = readFileSync(new URL('./particle-layer.ts', import.meta.url), 'utf8')
-    assert.doesNotMatch(src, /\[1, 1, 1, 0\.55\]/)
-    assert.match(src, /size: 1\.3/)
-    assert.match(src, /\[0\.09, 0\.75, 0\.82, 0\.5\]/)
+    assert.match(src, /\[1, 1, 1, 0\.22\]/)
+    assert.match(src, /size: 1,/)
     assert.match(src, /\[0\.498, 0\.831, 0\.91, 0\.55\]/)
-    assert.doesNotMatch(src, /粒子禁止染风速色/)
-    assert.match(src, /严禁白丝/)
+    assert.match(src, /this\.drawScalar\(g, matrix\)/)
     const shaders = readFileSync(new URL('./shaders.ts', import.meta.url), 'utf8')
-    assert.match(shaders, /vec3 silkRamp/)
-    assert.match(shaders, /rgb = silkRamp\(nrm\)/)
+    assert.match(shaders, /float a = mix\(0\.1, 0\.3, nrm\)/)
+    assert.match(shaders, /vec3 rgb = vec3\(1\.0\)/)
     assert.match(shaders, /#7FD4E8/)
-    assert.doesNotMatch(shaders, /#FFFFFF/)
-    assert.doesNotMatch(shaders, /texture\(u_lut, vec2\(nrm/)
+    assert.doesNotMatch(shaders, /vec3 silkRamp/)
     assert.match(shaders, /mix\(vec3\(luma\), rgb, 0\.5\)/)
-    assert.match(shaders, /alpha = 0\.3/)
+    assert.match(shaders, /alpha = 0\.5/)
     assert.match(shaders, /if \(mask < 0\.5\) discard/)
   })
 })

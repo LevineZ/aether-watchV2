@@ -10,6 +10,7 @@ export {
   TRAIL_FADE,
   TRAIL_FADE_OCEAN,
   TRAIL_GAIN,
+  TRAIL_LINE_WIDTH,
   WIND_DESK_SPEED_SCALE,
   WIND_SPEED_DESK,
   WIND_SPEED_GLOBAL,
@@ -18,7 +19,7 @@ export {
 } from './particle-layer'
 export { LUT_WIDTH, TEMP_STOPS, buildLut256, lutForOverlay } from './lut'
 export type { FieldStyle, OverlayMode, ParticleLayerOptions, PoolId } from './particle-layer'
-export { LOD, PARTICLE_TEX, lodCount, visualCount, zoomCountMul } from './lod'
+export { LOD, PARTICLE_TEX, WIND_COUNT_MAX, WIND_COUNT_MIN, lodCount, visualCount, zoomCountMul } from './lod'
 export type { LodLevel } from './lod'
 export { fieldViewUv } from './view-uv'
 export type { BBox4, LonLatView } from './view-uv'

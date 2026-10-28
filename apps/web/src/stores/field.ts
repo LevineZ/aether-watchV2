@@ -39,7 +39,7 @@ export const useFieldStore = defineStore('field', {
   }),
   getters: {
     badgeAlwaysDemo: () => true,
-    particleTarget: (s) => (s.frame ? 400_000 : 0),
+    particleTarget: (s) => (s.frame ? 25_000 : 0),
   },
   actions: {
     missKey(page: PageId, kind: FieldKind) {

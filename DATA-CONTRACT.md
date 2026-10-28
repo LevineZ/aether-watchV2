@@ -67,8 +67,8 @@ public/demo/
 
 ## 5. 粒子与性能门禁
 
-- 全页峰值：**30万–60万**（GPU 驻留；webgl-wind / MapLibre CustomLayer）
-- LOD：空闲 **peak≈40 万**；拖动停平流、计数不砍；**松手必须回 peak 并重投**。禁止卡在 interact/8k。
+- 全页峰值：**2万–3万**（屏上风粒子；webgl-wind / MapLibre CustomLayer）
+- LOD：空闲 **peak=3 万**；拖动停平流、计数不砍；**松手必须回 peak 并重投**。禁止卡在 interact/8k。
 - 全球风场与区域场洋流 **分池**，勿同屏叠满两套峰值
 - 切 Tab：**保留 Map/canvas**，停粒子；禁止整页拆球 + 同步 decode 整包
 
@@ -100,6 +100,6 @@ aether-demo-shell/
 
 - [ ] 三页默认 `demo` 均有流动；页脚「示例 · 单帧」，顶栏无「示例数据」角标
 - [ ] 切 Tab 无 Long Task 卡死（pause 粒子 + 不拆 Map）
-- [ ] 静止粒子可达 30万+；拖动降档可恢复
+- [ ] 静止粒子锁 2–3 万；拖动降档可恢复
 - [ ] 区域场可上传 NC → 同粒子/色幕通路；失败不崩
 - [ ] `live` 仅 stub，接口签名与 demo 相同
