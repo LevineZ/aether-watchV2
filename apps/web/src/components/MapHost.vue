@@ -36,12 +36,12 @@ onMounted(() => {
   map = new maplibregl.Map({
     container: root.value,
     style: styleWithRegionalRaster(mapStyle),
-    center: [120, 22],
-    zoom: 1.35,
+    center: [0, 18],
+    zoom: 1.72,
     attributionControl: false,
     fadeDuration: 0,
     maxPitch: 0,
-    renderWorldCopies: true,
+    renderWorldCopies: false,
     canvasContextAttributes: { antialias: true, alpha: true, preserveDrawingBuffer: false },
   })
   mapRuntime.map = map

@@ -25,7 +25,7 @@ export const mapRuntime: {
 }
 
 export const CAMERAS = {
-  global: { center: [8, 17] as [number, number], zoom: 1.48, pitch: 0, bearing: 0, globe: false },
+  global: { center: [0, 18] as [number, number], zoom: 1.52, pitch: 0, bearing: 0, globe: false },
   desk: { center: [104, 36] as [number, number], zoom: 3.85, pitch: 0, bearing: 0, globe: false },
   regional: { center: [124.5, 28.2] as [number, number], zoom: 5.1, pitch: 0, bearing: 0, globe: false },
   about: { center: [8, 17] as [number, number], zoom: 1.35, pitch: 0, bearing: 0, globe: false },
@@ -131,14 +131,19 @@ export function fitFieldView(page: keyof typeof CAMERAS, bbox?: BBox | null) {
           [win[0], win[1]],
           [win[2], win[3]],
         ],
-        { padding: { top: 16, bottom: 52, left: 12, right: 36 }, duration: 520, pitch: 0, bearing: 0 },
+        { padding: { top: 8, bottom: 40, left: 4, right: 12 }, duration: 520, pitch: 0, bearing: 0 },
       )
       return
     }
     if (page === 'global' || page === 'about') {
-      const w = map.getContainer().clientWidth || 1280
-      const zoom = Math.log2(Math.max(w, 320) / 512) - 0.03
-      map.easeTo({ center: CAMERAS.global.center, zoom, pitch: 0, bearing: 0, duration: 480 })
+      // Inset from ±180 so the dateline seam never shows a black world-copy.
+      map.fitBounds(
+        [
+          [-168, -52],
+          [168, 72],
+        ],
+        { padding: 0, duration: 0, pitch: 0, bearing: 0 },
+      )
     }
   } catch (err) {
     console.warn('[aether] fitFieldView skipped', err)
