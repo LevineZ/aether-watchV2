@@ -95,7 +95,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .toast {
   position: absolute;
-  top: 12px;
+  top: 64px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 4;

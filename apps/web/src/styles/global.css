@@ -6,6 +6,11 @@
   box-sizing: border-box;
 }
 
+::selection {
+  background: rgba(90, 200, 230, 0.35);
+  color: var(--ink);
+}
+
 html,
 body,
 #app {
@@ -31,9 +36,19 @@ button {
   color: inherit;
 }
 
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 a {
   color: var(--primary);
   text-decoration: none;
+}
+
+input::placeholder {
+  color: var(--ink-subtle);
 }
 
 .maplibregl-canvas-container,
@@ -57,17 +72,15 @@ a {
 }
 
 .shell {
+  position: relative;
   height: 100%;
-  display: flex;
-  flex-direction: column;
   background: var(--canvas);
   overflow: hidden;
 }
 
 .stage {
-  position: relative;
-  flex: 1;
-  min-height: 0;
+  position: absolute;
+  inset: 0;
 }
 
 .map-wrap,
@@ -83,8 +96,7 @@ a {
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-lg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-float);
 }
 
 .overlay {
@@ -99,11 +111,10 @@ a {
 }
 
 .panel-title {
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.04em;
   color: var(--ink-muted);
-  margin: 0 0 10px;
+  margin: 0 0 8px;
 }
 
 .muted {
@@ -124,7 +135,7 @@ h3 {
   background: var(--primary);
   color: var(--on-primary);
   border-radius: var(--radius-md);
-  padding: 8px 14px;
+  padding: 7px 12px;
   font-weight: 600;
   font-size: 13px;
 }
@@ -156,10 +167,4 @@ h3 {
 .scroll-y::-webkit-scrollbar-thumb {
   background: var(--primary-secondary);
   border-radius: 99px;
-}
-
-@media (max-width: 960px) {
-  :root {
-    --side: min(320px, calc(100vw - 24px));
-  }
 }

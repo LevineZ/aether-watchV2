@@ -1,38 +1,57 @@
 <script setup lang="ts">
-import RadarCard from '@/components/RadarCard.vue'
-import RenderDock from '@/components/RenderDock.vue'
+import { ref } from 'vue'
+import LayerRail from '@/components/LayerRail.vue'
+import ScaleBar from '@/components/ScaleBar.vue'
+import MapTools from '@/components/MapTools.vue'
+import NcUpload from '@/components/NcUpload.vue'
+import { useT } from '@/i18n'
+
+const t = useT()
+const open = ref(true)
 </script>
 
 <template>
   <div class="overlay">
-    <div class="tl">
-      <RadarCard />
-    </div>
-    <div class="br">
-      <RenderDock />
-    </div>
+    <LayerRail />
+    <MapTools />
+    <ScaleBar />
+    <section class="upload glass">
+      <button class="head" type="button" @click="open = !open">
+        <span>{{ t.ncTitle }}</span>
+        <span class="chev">{{ open ? '▾' : '▸' }}</span>
+      </button>
+      <div v-if="open" class="body">
+        <NcUpload />
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.tl {
+.upload {
   position: absolute;
-  top: 12px;
-  left: 12px;
+  right: 70px;
+  bottom: 64px;
+  width: min(280px, calc(100vw - 96px));
+  z-index: 4;
 }
-.br {
-  position: absolute;
-  right: 12px;
-  bottom: 100px;
+.head {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
 }
-@media (max-width: 960px) {
-  .br {
+.body {
+  padding: 0 12px 12px;
+}
+@media (max-width: 720px) {
+  .upload {
     left: 12px;
     right: 12px;
-    bottom: 96px;
-  }
-  .br :deep(.dock) {
-    width: 100%;
+    width: auto;
   }
 }
 </style>

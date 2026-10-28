@@ -20,9 +20,9 @@ const show = computed(
 <style scoped>
 .badge {
   position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 64px;
+  left: 196px;
+  transform: none;
   z-index: 4;
   pointer-events: none;
   font-size: 11px;
