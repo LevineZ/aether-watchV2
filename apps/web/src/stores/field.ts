@@ -145,6 +145,14 @@ export const useFieldStore = defineStore('field', {
         this.status = 'ready'
         return
       }
+      if (page === 'regional' && !this.uploaded) {
+        if (seq !== this.pageSeq) return
+        ui.setKind('ocean')
+        this.bindToGpu(null)
+        this.status = 'idle'
+        this.error = ''
+        return
+      }
       const kind = PAGE_DEFAULT_KIND[page]
       ui.setKind(kind)
       const pack = packForKind(page, kind)
@@ -174,6 +182,10 @@ export const useFieldStore = defineStore('field', {
     async selectKind(kind: FieldKind) {
       const ui = useUiStore()
       if (ui.page === 'about') return
+      if (ui.page === 'regional' && !this.uploaded) {
+        ui.uploadOpen = true
+        return
+      }
       const prev = ui.kind
       const pack = packForKind(ui.page, kind)
       if (!pack) {

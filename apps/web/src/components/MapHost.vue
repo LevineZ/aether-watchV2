@@ -10,6 +10,21 @@ import { useUiStore } from '@/stores/ui'
 import { useFieldStore } from '@/stores/field'
 import { useT } from '@/i18n'
 import DemoBadge from './DemoBadge.vue'
+import ProbeChip from './ProbeChip.vue'
+
+const PLACE_LAYERS = ['place-ocean', 'place-country', 'place-capital', 'place-region', 'place-city']
+
+function applyLabels() {
+  if (!map) return
+  const vis = ui.labelsOn ? 'visible' : 'none'
+  for (const id of PLACE_LAYERS) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis)
+  }
+}
+
+function typhoonOn() {
+  return ui.page === 'global' || ui.page === 'desk'
+}
 
 const root = ref<HTMLElement | null>(null)
 const ui = useUiStore()
@@ -22,7 +37,7 @@ function syncParticles() {
   const p = mapRuntime.particles
   if (!p) return
   p.applyKindLook(ui.kind)
-  if (field.frame) p.setFrame(field.frame)
+  p.setFrame(field.frame)
 }
 
 onMounted(() => {
@@ -49,7 +64,8 @@ onMounted(() => {
     map?.resize()
     applyCamera(ui.page)
     applyBasemap(map, ui.page, ui.kind)
-    showTyphoonOverlay(map, ui.page === 'global')
+    showTyphoonOverlay(map, typhoonOn())
+    applyLabels()
     syncParticles()
     particles.resume()
     field.preloadIdle()
@@ -63,9 +79,15 @@ watch(
   () => [ui.page, ui.kind, field.frame] as const,
   () => {
     if (map) applyBasemap(map, ui.page, ui.kind)
-    showTyphoonOverlay(map, ui.page === 'global')
+    showTyphoonOverlay(map, typhoonOn())
+    applyLabels()
     syncParticles()
   },
+)
+
+watch(
+  () => ui.labelsOn,
+  () => applyLabels(),
 )
 
 onBeforeUnmount(() => {
@@ -83,6 +105,7 @@ onBeforeUnmount(() => {
   <div class="map-wrap">
     <div class="map-host" ref="root" />
     <DemoBadge />
+    <ProbeChip />
     <div v-if="field.status === 'loading'" class="toast glass">{{ t.loading }}</div>
     <div v-else-if="field.status === 'error'" class="toast glass err">
       {{ t.error }}：{{ field.error }}

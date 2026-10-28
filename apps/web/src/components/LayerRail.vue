@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FieldKind } from '@aether/field'
+import { computed } from 'vue'
 import { useUiStore } from '@/stores/ui'
 import { useFieldStore } from '@/stores/field'
 import { useT } from '@/i18n'
@@ -8,118 +9,154 @@ const ui = useUiStore()
 const field = useFieldStore()
 const t = useT()
 
-const layers: {
-  id: FieldKind
-  key: 'chipWind' | 'chipOcean' | 'chipTemp' | 'chipPrecip'
-}[] = [
-  { id: 'wind', key: 'chipWind' },
-  { id: 'ocean', key: 'chipOcean' },
-  { id: 'temp', key: 'chipTemp' },
-  { id: 'precip', key: 'chipPrecip' },
+const layers: { id: FieldKind; key: 'chipWind' | 'chipOcean' | 'chipTemp' | 'chipPrecip'; dot: string }[] = [
+  { id: 'wind', key: 'chipWind', dot: 'var(--dot-wind)' },
+  { id: 'temp', key: 'chipTemp', dot: 'var(--dot-temp)' },
+  { id: 'precip', key: 'chipPrecip', dot: 'var(--dot-precip)' },
+  { id: 'ocean', key: 'chipOcean', dot: 'var(--dot-ocean)' },
 ]
+
+const heightLabel = computed(() => (ui.page === 'global' ? '2.0 m' : '10.0 m'))
 
 function pick(kind: FieldKind) {
   if (field.isKindMissing(ui.page, kind)) return
   void field.selectKind(kind)
 }
+
+function download() {
+  const frame = field.frame
+  const blob = new Blob(
+    [JSON.stringify({ note: '示例数据 · FieldFrame meta only', nx: frame?.nx, ny: frame?.ny, bbox: frame?.bbox, time: frame?.time, meta: frame?.meta }, null, 2)],
+    { type: 'application/json' },
+  )
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'aether-field-meta.json'
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
 </script>
 
 <template>
-  <nav class="rail" role="tablist" :aria-label="t.elements">
-    <button
-      v-for="c in layers"
-      :key="c.id"
-      class="row"
-      :class="{ on: ui.kind === c.id, missing: field.isKindMissing(ui.page, c.id) }"
-      type="button"
-      role="tab"
-      :aria-selected="ui.kind === c.id"
-      :aria-disabled="field.isKindMissing(ui.page, c.id)"
-      :title="field.isKindMissing(ui.page, c.id) ? t.chipMissing : undefined"
-      @click="pick(c.id)"
-    >
-      <svg v-if="c.id === 'wind'" class="ico" viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M3 7.5h9.2a2.3 2.3 0 1 0-2.3-2.3" />
-        <path d="M3 10.5h12a2.5 2.5 0 1 1-2.5 2.5" />
-        <path d="M3 13.5h6.5" />
-      </svg>
-      <svg v-else-if="c.id === 'ocean'" class="ico" viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M2 8.5c2 1.6 3.6-1.6 5.6 0s3.6-1.6 5.6 0 3.6-1.6 4.8 0" />
-        <path d="M2 12.2c2 1.6 3.6-1.6 5.6 0s3.6-1.6 5.6 0 3.6-1.6 4.8 0" />
-      </svg>
-      <svg v-else-if="c.id === 'temp'" class="ico" viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M9 3.5v8.2a2.6 2.6 0 1 0 2 0V3.5a1 1 0 1 0-2 0z" />
-        <path d="M9 11.2h2" />
-      </svg>
-      <svg v-else class="ico" viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M10 3.5v6.2" />
-        <path d="M10 9.7c-2.4 0-4 1.7-4 3.6A3.6 3.6 0 0 0 10 17a3.6 3.6 0 0 0 4-3.7c0-1.9-1.6-3.6-4-3.6z" />
-      </svg>
-      <span>{{ t[c.key] }}</span>
-    </button>
-  </nav>
+  <aside class="dock">
+    <div class="layers">
+      <button
+        v-for="c in layers"
+        :key="c.id"
+        class="row"
+        :class="{ on: ui.kind === c.id, missing: field.isKindMissing(ui.page, c.id) }"
+        type="button"
+        @click="pick(c.id)"
+      >
+        <span class="dot" :style="{ background: c.dot }" />
+        {{ t[c.key] }}
+      </button>
+    </div>
+    <div class="tools">
+      <button class="chip on" type="button" :title="t.altitude">
+        {{ heightLabel }}
+        <span class="chev" aria-hidden="true">▾</span>
+      </button>
+      <div class="pair">
+        <button class="chip" type="button">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="2" rx="1"/><rect x="2" y="7" width="12" height="2" rx="1"/><rect x="2" y="11" width="12" height="2" rx="1"/></svg>
+          {{ t.layers }}
+        </button>
+        <button class="chip" type="button">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.2" fill="none" stroke="currentColor"/><path d="M8 4.8v3.4l2.2 1.2" fill="none" stroke="currentColor"/></svg>
+          {{ t.hours }}
+        </button>
+      </div>
+      <button v-if="ui.page === 'regional'" class="chip" type="button" @click="ui.uploadOpen = true">{{ t.upload }}</button>
+      <button class="chip" type="button" @click="download">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v7M5 8l3 3 3-3M3.5 13h9" fill="none" stroke="currentColor"/></svg>
+        {{ t.export }}
+      </button>
+    </div>
+  </aside>
 </template>
 
 <style scoped>
-.rail {
+.dock {
   position: absolute;
-  top: 64px;
-  left: 12px;
-  z-index: 4;
-  width: var(--rail-w);
-  padding: 6px;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--shadow-float);
+  top: 72px;
+  left: 16px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.layers,
+.tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 .row {
-  width: 100%;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  height: 36px;
-  padding: 0 8px;
-  color: var(--ink-muted);
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px 0 8px;
+  border-radius: var(--radius-pill);
+  color: #111;
   font-size: 13px;
-  text-align: left;
-}
-.row:hover {
-  color: var(--ink);
-  background: rgba(232, 241, 248, 0.04);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.35);
 }
 .row.on {
-  color: var(--ink);
-  background: rgba(90, 200, 230, 0.16);
+  background: #111;
+  color: #fff;
+  text-shadow: none;
 }
 .row.missing {
-  opacity: 0.38;
+  opacity: 0.35;
   cursor: not-allowed;
 }
-.ico {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  stroke: currentColor;
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+}
+.chip {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
+  font-size: 12px;
+  box-shadow: var(--shadow-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.chip.on {
+  background: #111;
+  color: #fff;
+}
+.chip svg {
+  width: 12px;
+  height: 12px;
   fill: none;
-  stroke-width: 1.5;
+  stroke: currentColor;
+  stroke-width: 1.4;
   stroke-linecap: round;
-  stroke-linejoin: round;
+}
+.chip svg rect {
+  fill: currentColor;
+  stroke: none;
+}
+.chev {
+  font-size: 10px;
+  opacity: 0.7;
+}
+.pair {
+  display: flex;
+  gap: 6px;
 }
 @media (max-width: 720px) {
-  .rail {
-    top: auto;
-    bottom: 64px;
-    width: auto;
-    display: flex;
-    max-width: calc(100vw - 80px);
-  }
-  .row span {
+  .tools {
     display: none;
-  }
-  .row {
-    width: 36px;
-    padding: 0;
-    justify-content: center;
   }
 }
 </style>

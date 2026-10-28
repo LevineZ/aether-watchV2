@@ -20,17 +20,26 @@ const show = computed(
 <style scoped>
 .badge {
   position: absolute;
-  top: 64px;
-  left: 196px;
-  transform: none;
-  z-index: 4;
+  top: 72px;
+  right: 16px;
+  z-index: 5;
   pointer-events: none;
-  font-size: 11px;
-  letter-spacing: 0.14em;
+  height: 32px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--on-primary);
-  background: var(--primary);
-  border-radius: var(--radius-pill);
-  padding: 3px 10px;
+  letter-spacing: 0.02em;
+  color: #111;
+  background: #fff;
+  border-radius: 9999px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12);
+}
+@media (max-width: 720px) {
+  .badge {
+    top: 64px;
+    right: 16px;
+  }
 }
 </style>

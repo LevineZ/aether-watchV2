@@ -2,9 +2,13 @@ import type { Map as MapLibreMap } from 'maplibre-gl'
 
 const SRC = 'typhoon-demo'
 const TRACK = 'typhoon-track'
-const CORE = 'typhoon-core'
+const FORECAST = 'typhoon-forecast'
+const DOTS = 'typhoon-dots'
 const RING = 'typhoon-ring'
+const CORE = 'typhoon-core'
+const MARK = 'typhoon-mark'
 const LABEL = 'typhoon-label'
+const MARK_LABEL = 'typhoon-mark-label'
 
 function cycloneBitmap(): ImageData {
   const s = 64
@@ -14,8 +18,8 @@ function cycloneBitmap(): ImageData {
   const g = c.getContext('2d')!
   g.clearRect(0, 0, s, s)
   g.translate(s / 2, s / 2)
-  g.strokeStyle = '#5ac8e6'
-  g.lineWidth = 2.2
+  g.strokeStyle = '#7c3aed'
+  g.lineWidth = 2.4
   g.lineCap = 'round'
   g.beginPath()
   for (let t = 0; t < Math.PI * 3.2; t += 0.12) {
@@ -26,90 +30,192 @@ function cycloneBitmap(): ImageData {
     else g.lineTo(x, y)
   }
   g.stroke()
+  return g.getImageData(0, 0, s, s)
+}
+
+function crossBitmap(): ImageData {
+  const s = 32
+  const c = document.createElement('canvas')
+  c.width = s
+  c.height = s
+  const g = c.getContext('2d')!
+  g.clearRect(0, 0, s, s)
+  g.strokeStyle = '#111111'
+  g.lineWidth = 2.4
+  g.lineCap = 'round'
   g.beginPath()
-  g.arc(0, 0, 3.2, 0, Math.PI * 2)
+  g.moveTo(8, 8)
+  g.lineTo(24, 24)
+  g.moveTo(24, 8)
+  g.lineTo(8, 24)
   g.stroke()
   return g.getImageData(0, 0, s, s)
 }
 
-/** 台风图标 + 虚线路径：仅壳叠，不进 FieldFrame。 */
+const LAYERS = [TRACK, FORECAST, DOTS, RING, CORE, MARK, LABEL, MARK_LABEL]
+
+/** 白虚线 + 紫点台风轨：仅壳叠，不进 FieldFrame。 */
 export function ensureTyphoonOverlay(map: MapLibreMap, beforeId?: string) {
   const before = beforeId && map.getLayer(beforeId) ? beforeId : undefined
   if (!map.hasImage('typhoon-icon')) {
     map.addImage('typhoon-icon', cycloneBitmap(), { pixelRatio: 2 })
   }
+  if (!map.hasImage('typhoon-cross')) {
+    map.addImage('typhoon-cross', crossBitmap(), { pixelRatio: 2 })
+  }
   if (!map.getSource(SRC)) {
     map.addSource(SRC, { type: 'geojson', data: '/geo/typhoon-demo.json' })
   }
+  const linePaint = {
+    'line-color': '#ffffff',
+    'line-width': 1.15,
+    'line-dasharray': [1.1, 1.8],
+    'line-opacity': 0.92,
+  }
   if (!map.getLayer(TRACK)) {
-    map.addLayer({
-      id: TRACK,
-      type: 'line',
-      source: SRC,
-      filter: ['==', ['get', 'kind'], 'track'],
-      paint: {
-        'line-color': '#5ac8e6',
-        'line-width': 1.35,
-        'line-dasharray': [1.4, 1.6],
-        'line-opacity': 0.85,
+    map.addLayer(
+      {
+        id: TRACK,
+        type: 'line',
+        source: SRC,
+        filter: ['==', ['get', 'kind'], 'track'],
+        paint: linePaint,
       },
-    }, before)
+      before,
+    )
+  }
+  if (!map.getLayer(FORECAST)) {
+    map.addLayer(
+      {
+        id: FORECAST,
+        type: 'line',
+        source: SRC,
+        filter: ['==', ['get', 'kind'], 'forecast'],
+        paint: linePaint,
+      },
+      before,
+    )
+  }
+  if (!map.getLayer(DOTS)) {
+    map.addLayer(
+      {
+        id: DOTS,
+        type: 'circle',
+        source: SRC,
+        filter: ['==', ['get', 'kind'], 'dot'],
+        paint: {
+          'circle-radius': 2.4,
+          'circle-color': '#c4b5fd',
+          'circle-stroke-color': '#7c3aed',
+          'circle-stroke-width': 0.7,
+        },
+      },
+      before,
+    )
   }
   if (!map.getLayer(RING)) {
-    map.addLayer({
-      id: RING,
-      type: 'circle',
-      source: SRC,
-      filter: ['==', ['get', 'kind'], 'center'],
-      paint: {
-        'circle-radius': 11,
-        'circle-color': 'rgba(90,200,230,0.08)',
-        'circle-stroke-color': '#5ac8e6',
-        'circle-stroke-width': 1,
-        'circle-stroke-opacity': 0.7,
+    map.addLayer(
+      {
+        id: RING,
+        type: 'circle',
+        source: SRC,
+        filter: ['==', ['get', 'kind'], 'center'],
+        paint: {
+          'circle-radius': 9,
+          'circle-color': 'rgba(255,255,255,0.18)',
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1.4,
+        },
       },
-    }, before)
+      before,
+    )
   }
   if (!map.getLayer(CORE)) {
-    map.addLayer({
-      id: CORE,
-      type: 'symbol',
-      source: SRC,
-      filter: ['==', ['get', 'kind'], 'center'],
-      layout: {
-        'icon-image': 'typhoon-icon',
-        'icon-size': 0.72,
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true,
+    map.addLayer(
+      {
+        id: CORE,
+        type: 'circle',
+        source: SRC,
+        filter: ['==', ['get', 'kind'], 'center'],
+        paint: {
+          'circle-radius': 3.2,
+          'circle-color': '#ffffff',
+          'circle-stroke-color': '#7c3aed',
+          'circle-stroke-width': 1,
+        },
       },
-    }, before)
+      before,
+    )
+  }
+  if (!map.getLayer(MARK)) {
+    map.addLayer(
+      {
+        id: MARK,
+        type: 'symbol',
+        source: SRC,
+        filter: ['==', ['get', 'kind'], 'mark'],
+        layout: {
+          'icon-image': 'typhoon-cross',
+          'icon-size': 0.7,
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+        },
+      },
+      before,
+    )
   }
   if (!map.getLayer(LABEL)) {
-    map.addLayer({
-      id: LABEL,
-      type: 'symbol',
-      source: SRC,
-      filter: ['==', ['get', 'kind'], 'center'],
-      layout: {
-        'text-field': 'DEMO',
-        'text-size': 10,
-        'text-offset': [0, 1.55],
-        'text-font': ['Noto Sans Regular'],
-        'text-allow-overlap': true,
+    map.addLayer(
+      {
+        id: LABEL,
+        type: 'symbol',
+        source: SRC,
+        filter: ['==', ['get', 'kind'], 'center'],
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-size': 12,
+          'text-offset': [0, 1.6],
+          'text-font': ['Noto Sans Regular'],
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': '#111111',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 6,
+        },
       },
-      paint: {
-        'text-color': '#5ac8e6',
-        'text-halo-color': 'rgba(10,22,40,0.85)',
-        'text-halo-width': 1.2,
+      before,
+    )
+  }
+  if (!map.getLayer(MARK_LABEL)) {
+    map.addLayer(
+      {
+        id: MARK_LABEL,
+        type: 'symbol',
+        source: SRC,
+        filter: ['==', ['get', 'kind'], 'mark'],
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-size': 12,
+          'text-offset': [0, 1.55],
+          'text-font': ['Noto Sans Regular'],
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': '#111111',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 6,
+        },
       },
-    }, before)
+      before,
+    )
   }
 }
 
 export function showTyphoonOverlay(map: MapLibreMap | null, on: boolean) {
   if (!map) return
   const vis = on ? 'visible' : 'none'
-  for (const id of [TRACK, RING, CORE, LABEL]) {
+  for (const id of LAYERS) {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis)
   }
 }

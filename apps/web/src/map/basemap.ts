@@ -16,8 +16,8 @@ export const FIREFLY_PREFETCH_Z = [6, 7, 8] as const
 export const FIREFLY_PATH = '/basemap/regional/firefly.pmtiles'
 export const FIREFLY_ATTR = 'Esri, Maxar, Earthstar Geographics 等'
 
-const SAT_BEFORE = 'land-line'
-const REGIONAL_HIDE = ['water', 'land', 'land-line'] as const
+const SAT_BEFORE = 'coast-line'
+const REGIONAL_HIDE = ['water', 'land', 'coast-line'] as const
 const REGIONAL_SHOW = ['ecs-sat', 'ecs-ink'] as const
 
 let protocol: Protocol | null = null

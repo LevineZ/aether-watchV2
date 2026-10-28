@@ -2,7 +2,7 @@
 
 *AetherWatch lite demo shell — institutional preview of global / forecast / regional fields.*
 
-墨蓝壳 `#0a1628` + 克制青 `#5ac8e6`。给机构客户看**全球场 / 预报台 / 区域场**的观感对标，**不抄接口**。  
+v0.11 浅色白胶囊壳。给机构客户看**全球场 / 预报台 / 区域场**的观感对标，**不抄接口、不刮第三方天气瓦片**。  
 场数据只走 **FieldFrame**，默认读 `public/demo/**` 静态包，`meta.source=demo`。无 Redis、无实况上游。
 
 设计与契约：[`DESIGN.md`](./DESIGN.md)、[`DATA-CONTRACT.md`](./DATA-CONTRACT.md)。  
@@ -38,9 +38,9 @@
 
 | 路径 | 页 | 当前默认 |
 |------|----|----------|
-| `/global` | 全球 | 三维地球；四芯片各绑 `public/demo/global/{wind,ocean,temp,precip}`（721×361 全球窗）。缺包灰芯片，**不回退** `regional/*` |
+| `/global` | 全球 | 墨卡托铺满；四芯片各绑 `public/demo/global/{wind,ocean,temp,precip}`（721×361 全球窗）。缺包灰芯片，**不回退** `regional/*` |
 | `/desk`（`/forecast` 别名） | 预报台 | 全国平面窗；`demo/china/{wind,temp,precip}`；洋流来源缺失（灰芯片）。城市列表只飞相机，**不自动切城包** |
-| `/regional` | 区域场 | 东海窗 + **洋流水幕（仅海 mask）**；气温/降雨用区域包或用户 NC。岸线走 Firefly PMTiles 底图 |
+| `/regional` | 区域场 | 未上传时居中双 CTA，不绑演示场；上传 NC 后东海窗 + **洋流水幕（仅海 mask）** |
 | `/about` | 关于 | 商业简介 + 能力列表 + 演示说明；无场；粒子暂停 |
 
 切 Tab **保留 Map/canvas**，先 pause 粒子再换场纹理；禁止拆球 + 主线程同步 decode。
@@ -49,7 +49,7 @@
 
 | 要素 | 哪一页 | 现在怎么用 | 限制 |
 |------|--------|------------|------|
-| **风** | 全球、预报台 | 全球远景雾感丝带（约 60–80k，深墨→`#5ac8e6`）；预报台全国窗 | 单帧；时间轴不切时次 |
+| **风** | 全球、预报台 | 全球远景近白细丝 + 风速色幕；预报台东亚窗 + 台风轨 | 单帧；时间轴不切时次 |
 | **洋流** | 全球 / 区域场默认 | 粒子纱 + **硬海洋 mask**；陆地 `u/v=NaN`。预报台芯片灰（无近岸包） | 全球用 `global/ocean`；区域窗锁 `[116.5,21,132.5,36]` |
 | **气温** | 三页芯片 | **只画 scalar 热幕**（蓝→青→黄→红，约 −20–40°C）；粒子 paused / count=0 | 禁 `mask.bin`；全球用全球包 |
 | **降雨** | 三页芯片 | **积水斑**（清→浅青→靛蓝）；粒子同样 paused | 禁 `mask.bin`；全球用全球包 |

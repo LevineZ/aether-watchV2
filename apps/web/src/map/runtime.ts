@@ -26,7 +26,7 @@ export const mapRuntime: {
 
 export const CAMERAS = {
   global: { center: [20, 18] as [number, number], zoom: 1.55, pitch: 0, bearing: 0, globe: false },
-  desk: { center: [105, 36] as [number, number], zoom: 3.4, pitch: 0, bearing: 0, globe: false },
+  desk: { center: [128, 30] as [number, number], zoom: 4.15, pitch: 0, bearing: 0, globe: false },
   regional: { center: [124.5, 28.2] as [number, number], zoom: 5.1, pitch: 0, bearing: 0, globe: false },
   about: { center: [120, 22] as [number, number], zoom: 1.2, pitch: 0, bearing: 0, globe: true },
 }

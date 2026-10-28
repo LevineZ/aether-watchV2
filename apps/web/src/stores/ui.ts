@@ -23,6 +23,8 @@ export const useUiStore = defineStore('ui', {
     overlay: 'wind' as 'none' | 'wind' | 'temp' | 'precip' | 'ocean',
     selectedCity: '北京',
     switching: false,
+    labelsOn: true,
+    uploadOpen: false,
   }),
   actions: {
     setKind(kind: FieldKind) {
