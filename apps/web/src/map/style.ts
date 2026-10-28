@@ -24,9 +24,9 @@ function labelLayout(size: unknown, extra: Record<string, unknown> = {}) {
 
 const LABEL_PAINT = {
   'text-color': '#ffffff',
-  'text-halo-color': 'rgba(0, 0, 0, 0.25)',
-  'text-halo-width': 0.8,
-  'text-halo-blur': 0.2,
+  'text-halo-color': 'rgba(0, 0, 0, 0.45)',
+  'text-halo-width': 1.15,
+  'text-halo-blur': 0.35,
 }
 
 const SIZE_FAR_NEAR = ['interpolate', ['linear'], ['zoom'], 0, 11, 2.4, 12, 5, 13, 7.5, 14]
@@ -78,8 +78,8 @@ export const mapStyle = {
       source: 'land',
       paint: {
         'line-color': '#ffffff',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.45, 3, 0.7, 6, 1.0, 9, 1.25],
-        'line-opacity': 0.72,
+        'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.55, 3, 0.85, 6, 1.15, 9, 1.4],
+        'line-opacity': 0.94,
       },
     },
     {

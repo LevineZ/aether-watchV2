@@ -49,7 +49,8 @@ void main() {
   float mask = wtex.b;
   float vmax = max(max(abs(u_wind_min.x), abs(u_wind_max.x)), max(abs(u_wind_min.y), abs(u_wind_max.y)));
   vmax = max(vmax, 0.5);
-  float drop = u_drop_rate + length(vel) / vmax * 0.01 * u_uv_scale;
+  // Low bump: high drop teleports particles and reads as 乱窜 vs Ventusky silk.
+  float drop = u_drop_rate + length(vel) / vmax * 0.001 * u_uv_scale;
   float r = rand(pos + u_rand_seed);
   bool dead = false;
   if (u_motion > 0.5) {
@@ -294,32 +295,39 @@ in float v_alive;
 in float v_edge;
 in float v_kind;
 out vec4 fragColor;
-${MIX7}
 void main() {
   if (v_alive < 0.45 && v_kind < 2.5) discard;
   if (v_kind > 2.5 && v_alive < 0.06) discard;
   vec2 p = gl_PointCoord * 2.0 - 1.0;
   float d = length(p);
   if (d > 1.0) discard;
-  float edge = smoothstep(0.0, 0.045, v_edge);
-  float nrm = clamp(v_speed / max(u_speed_ref, 0.4), 0.0, 1.0);
-  if (v_kind > 2.5) {
-    float core = smoothstep(1.0, 0.12, d);
-    vec3 rgb = mix(vec3(0.82, 0.94, 1.0), vec3(0.40, 0.78, 0.96), d);
-    fragColor = vec4(rgb, 0.72 * core * edge);
-    return;
-  }
-  if (v_kind > 0.5 && v_kind < 1.5) {
-    float core = smoothstep(1.0, 0.18, d);
-    vec3 rgb = mix(u_color.rgb, oceanRamp(nrm), 0.55);
-    fragColor = vec4(rgb, u_color.a * core * 0.8 * edge);
-    return;
-  }
-  float core = smoothstep(1.0, 0.18, d);
-  float fog = smoothstep(1.0, 0.0, d);
-  float alpha = mix(fog * 0.88, core * 0.8, u_style) * edge;
-  vec3 rgb = mix(vec3(0.93, 0.96, 1.0), windRamp(nrm), 0.55);
-  fragColor = vec4(rgb, u_color.a * alpha);
+  float core = smoothstep(1.0, 0.42, d);
+  float edge = smoothstep(0.0, 0.03, v_edge);
+  float a = u_color.a * core * edge;
+  fragColor = vec4(u_color.rgb * a, a);
+}
+`
+
+export const FADE_FS = `#version 300 es
+precision mediump float;
+uniform sampler2D u_tex;
+uniform float u_fade;
+in vec2 v_uv;
+out vec4 fragColor;
+void main() {
+  fragColor = texture(u_tex, v_uv) * u_fade;
+}
+`
+
+export const BLIT_FS = `#version 300 es
+precision mediump float;
+uniform sampler2D u_tex;
+uniform float u_gain;
+in vec2 v_uv;
+out vec4 fragColor;
+void main() {
+  vec4 c = texture(u_tex, v_uv);
+  fragColor = c * u_gain;
 }
 `
 
@@ -429,23 +437,21 @@ void main() {
       vec3(0.980, 0.800, 0.082),
       vec3(0.976, 0.451, 0.086),
       vec3(0.863, 0.149, 0.149));
-    alpha = 0.90;
+    alpha = 0.38;
   } else if (u_mode < 1.5) {
     float wet = smoothstep(0.02, 0.72, t);
-    vec3 dry = vec3(0.035, 0.078, 0.090);
-    vec3 mid = vec3(0.070, 0.420, 0.380);
-    vec3 glow = vec3(0.780, 0.960, 0.620);
-    vec3 hot = vec3(0.980, 0.780, 0.280);
+    vec3 dry = vec3(0.04, 0.09, 0.10);
+    vec3 mid = vec3(0.07, 0.42, 0.38);
+    vec3 glow = vec3(0.78, 0.96, 0.62);
+    vec3 hot = vec3(0.98, 0.78, 0.28);
     rgb = mix(mix(dry, mid, clamp(wet * 1.4, 0.0, 1.0)), mix(glow, hot, smoothstep(0.55, 1.0, t)), wet);
-    float pulse = 0.035 * sin(u_time * 1.6 + v_uv.x * 28.0 + v_uv.y * 16.0);
-    rgb += vec3(pulse) * wet;
-    alpha = mix(0.70, 0.92, wet);
+    alpha = mix(0.04, 0.42, wet);
   } else if (u_mode < 2.5) {
     rgb = windRamp(t);
-    alpha = 0.84;
+    alpha = 0.30;
   } else {
     rgb = oceanRamp(t);
-    alpha = mix(0.86, 0.96, t) * max(mask, 0.12);
+    alpha = 0.28 * mask;
   }
   fragColor = vec4(rgb * alpha, alpha);
 }

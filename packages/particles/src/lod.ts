@@ -23,7 +23,7 @@ export function zoomCountMul(zoom: number): number {
   return Math.max(0.28, Math.min(1.25, (ZOOM_REF / z) ** 0.85))
 }
 
-/** 默认观感：全球远景细丝；预报台粒子只活在可视 UV 窗，不因全球包变稀。 */
+/** Ventusky/Windy：屏空间拖影，粒子宜稀。过密会糊成噪点、盖住地图。 */
 export function visualCount(opts: {
   ocean: boolean
   precip?: boolean
@@ -32,8 +32,8 @@ export function visualCount(opts: {
   zoom?: number
 }): number {
   const d = Math.max(0.2, Math.min(1, opts.density))
-  if (opts.ocean) return Math.floor((opts.regionalWindow ? 14_000 : 36_000) * d)
-  if (opts.precip) return Math.floor((opts.regionalWindow ? 16_000 : 34_000) * d)
+  if (opts.ocean) return Math.floor((opts.regionalWindow ? 6_000 : 12_000) * d)
+  if (opts.precip) return Math.floor((opts.regionalWindow ? 8_000 : 12_000) * d)
   const zMul = zoomCountMul(opts.zoom ?? ZOOM_REF)
-  return Math.floor((opts.regionalWindow ? 22_000 : 84_000) * d * zMul)
+  return Math.floor((opts.regionalWindow ? 7_000 : 17_000) * d * zMul)
 }

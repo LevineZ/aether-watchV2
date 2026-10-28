@@ -10,8 +10,10 @@ import {
 import { PARTICLE_TEX, visualCount, type LodLevel } from './lod'
 import { fieldViewUv } from './view-uv'
 import {
+  BLIT_FS,
   DRAW_FS,
   DRAW_VS,
+  FADE_FS,
   LINE_FS,
   LINE_VS,
   QUAD_GEO_VS,
@@ -172,10 +174,16 @@ function fieldToRgba(frame: FieldFrame): {
   return { data, uMin: ur[0], uMax: ur[1], vMin: vr[0], vMax: vr[1], speedLo, speedHi }
 }
 
-/** 关收 tip 默认平流 0.005。风丝全球 ×0.18 / 东亚窗 ×0.09；洋流冻结 ×0.32。降雨为下落，不走 UV 平流。 */
-export const ADVECT_STEP = 0.0025
-export const WIND_SPEED_GLOBAL = 0.18
-export const WIND_SPEED_DESK = 0.09
+/**
+ * Ventusky / Windy visual grammar (own FieldFrame, no third-party tiles):
+ * translucent color wash + white screen-space fade trails (webgl-wind).
+ * LINEAR trail + fade≈0.995 turns 1px stamps into long silk; high drop / idle reseed = 乱窜.
+ */
+export const ADVECT_STEP = 0.0024
+export const WIND_SPEED_GLOBAL = 0.22
+export const WIND_SPEED_DESK = 0.085
+export const TRAIL_FADE = 0.995
+export const TRAIL_GAIN = 0.78
 /** @deprecated 用 WIND_SPEED_DESK / WIND_SPEED_GLOBAL */
 export const WIND_DESK_SPEED_SCALE = WIND_SPEED_DESK / WIND_SPEED_GLOBAL
 
@@ -205,9 +213,9 @@ export const KIND_LOOK: Record<
     style: 'wind-fog',
     overlay: 'wind',
     speed: WIND_SPEED_GLOBAL,
-    drop: 0.0008,
-    size: 0.85,
-    color: [0.91, 0.957, 1.0, 0.55],
+    drop: 0.00008,
+    size: 1.35,
+    color: [0.93, 0.97, 1.0, 0.34],
     ribbonDeg: 5.8,
     ribbonPx: 0.72,
     uvScale: 1,
@@ -216,10 +224,10 @@ export const KIND_LOOK: Record<
   ocean: {
     style: 'currents',
     overlay: 'ocean',
-    speed: 0.32,
-    drop: 0.0014,
-    size: 2.9,
-    color: [0.35, 0.78, 0.88, 0.42],
+    speed: 0.11,
+    drop: 0.00016,
+    size: 1.3,
+    color: [0.68, 0.9, 0.98, 0.28],
     ribbonDeg: 3.2,
     ribbonPx: 7.2,
     uvScale: 1,
@@ -259,11 +267,11 @@ export type ParticleLayerOptions = {
  * MapLibre CustomLayer：GPU 粒子。
  * - 粒子 UV 只活在 FieldFrame.bbox 内；每帧用当前相机 defaultProjectionData 重绑，禁止缓存 world→UV。
  * - 空闲 peak≈40 万；拖动停平流、计数不砍；松手 peak + 重投。
- * - wind：同包 |UV| 色幕 + 风速着色丝带；禁止再叠温度包。
- * - temp：只画 scalar 热幕。
- * - precip：湿幕 + 下落雨丝（湿区重生）。
- * - ocean：流速色幕 + 宽纱。
- * - 粒子只活在相机可见 UV 窗，全球包在东亚窗里仍密。
+ * - wind：半透明 |UV| 色幕 + 白色点进屏空间拖影（Ventusky/Windy 语法）。
+ * - temp：半透明热幕，无粒子。
+ * - precip：湿处半透明 + 下落雨丝。
+ * - ocean：半透明海幕 + 青色拖影。
+ * - 粒子只活在相机可见 UV 窗。拖动清空拖影，禁止拖花。
  */
 export class ParticleLayer {
   id: string
@@ -276,6 +284,13 @@ export class ParticleLayer {
   private drawProg: WebGLProgram | null = null
   private lineProg: WebGLProgram | null = null
   private scalarProg: WebGLProgram | null = null
+  private fadeProg: WebGLProgram | null = null
+  private blitProg: WebGLProgram | null = null
+  private trail0: WebGLTexture | null = null
+  private trail1: WebGLTexture | null = null
+  private trailFbo: WebGLFramebuffer | null = null
+  private trailW = 0
+  private trailH = 0
   private vao: WebGLVertexArrayObject | null = null
   private quadBuf: WebGLBuffer | null = null
   private ptex0: WebGLTexture | null = null
@@ -327,6 +342,9 @@ export class ParticleLayer {
     this.drawProg = program(g, DRAW_VS, DRAW_FS)
     this.lineProg = program(g, LINE_VS, LINE_FS)
     this.scalarProg = program(g, QUAD_GEO_VS, SCALAR_FS)
+    this.fadeProg = program(g, QUAD_VS, FADE_FS)
+    this.blitProg = program(g, QUAD_VS, BLIT_FS)
+    this.trailFbo = g.createFramebuffer()
     this.quadBuf = g.createBuffer()
     g.bindBuffer(g.ARRAY_BUFFER, this.quadBuf)
     g.bufferData(g.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), g.STATIC_DRAW)
@@ -346,12 +364,13 @@ export class ParticleLayer {
     this.moveHandler = () => {
       this.advecting = false
       if (this.lod === 'interact' || this.lod === 'paused') this.lod = 'peak'
+      this.clearTrail()
       map.triggerRepaint()
     }
     this.idleHandler = () => {
       this.advecting = true
       this.lod = 'peak'
-      this.pendingReseed = true
+      // Do not reseed on idle — teleporting the pool is what reads as 乱窜.
       map.triggerRepaint()
     }
     map.on('movestart', this.moveHandler)
@@ -376,12 +395,17 @@ export class ParticleLayer {
       g.deleteProgram(this.drawProg)
       g.deleteProgram(this.lineProg)
       g.deleteProgram(this.scalarProg)
+      g.deleteProgram(this.fadeProg)
+      g.deleteProgram(this.blitProg)
       g.deleteBuffer(this.quadBuf)
       g.deleteVertexArray(this.vao)
       g.deleteTexture(this.ptex0)
       g.deleteTexture(this.ptex1)
       g.deleteTexture(this.windTex)
+      g.deleteTexture(this.trail0)
+      g.deleteTexture(this.trail1)
       g.deleteFramebuffer(this.fbo)
+      g.deleteFramebuffer(this.trailFbo)
     }
     this.map = null
     this.gl = null
@@ -558,7 +582,9 @@ export class ParticleLayer {
       this.reseed(g)
       this.pendingReseed = false
     }
-    if (!this.didPrerender && this.showParticles() && this.advecting && !this.map?.isMoving()) {
+    const moving = !!this.map?.isMoving()
+    if (this.kind !== 'temp' && !moving) this.advecting = true
+    if (!this.didPrerender && this.showParticles() && this.advecting && !moving) {
       this.updateParticles(g)
     }
     this.didPrerender = false
@@ -574,7 +600,7 @@ export class ParticleLayer {
 
     if (this.vao) g.bindVertexArray(this.vao)
 
-    // Stack: basemap (under this custom layer) → smooth curtain → strands → labels/chrome.
+    // Stack: basemap → translucent curtain → screen-space trails / rain → labels.
     if (this.overlay !== 'none' && this.scalarProg) {
       g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
       g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
@@ -583,12 +609,16 @@ export class ParticleLayer {
 
     const particlesOn = this.showParticles()
     const count = particlesOn ? this.drawCount() : 0
-    if (particlesOn && count > 0) {
+    const trailKind = this.kind === 'wind' || this.kind === 'ocean'
+    if (particlesOn && count > 0 && trailKind) {
+      this.stampTrail(g, matrix, count, prevFb, prevVp)
+      g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
+      g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
+      this.blitTrail(g)
+    } else if (particlesOn && count > 0 && this.kind === 'precip') {
       g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
       g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
       this.drawRibbons(g, matrix, count)
-      const heads = this.kind === 'ocean' ? 0.04 : this.kind === 'precip' ? 0.14 : 0
-      this.drawParticles(g, matrix, Math.floor(count * heads))
     }
 
     if (prevVao) g.bindVertexArray(prevVao)
@@ -725,6 +755,86 @@ export class ParticleLayer {
     g.uniform4f(g.getUniformLocation(prog, 'u_bbox'), this.bbox[0], this.bbox[1], this.bbox[2], this.bbox[3])
   }
 
+  private ensureTrail(g: GL, w: number, h: number) {
+    if (this.trail0 && this.trail1 && this.trailW === w && this.trailH === h) return
+    if (this.trail0) g.deleteTexture(this.trail0)
+    if (this.trail1) g.deleteTexture(this.trail1)
+    this.trail0 = createRgbaTex(g, w, h, null, g.LINEAR)
+    this.trail1 = createRgbaTex(g, w, h, null, g.LINEAR)
+    this.trailW = w
+    this.trailH = h
+    this.clearTrail()
+  }
+
+  private clearTrail() {
+    const g = this.gl
+    if (!g || !this.trailFbo || !this.trail0 || !this.trail1) return
+    const prevFb = g.getParameter(g.FRAMEBUFFER_BINDING)
+    const prevVp = g.getParameter(g.VIEWPORT) as Int32Array
+    g.bindFramebuffer(g.FRAMEBUFFER, this.trailFbo)
+    for (const tex of [this.trail0, this.trail1]) {
+      g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, tex, 0)
+      g.viewport(0, 0, this.trailW || 2, this.trailH || 2)
+      g.clearColor(0, 0, 0, 0)
+      g.clear(g.COLOR_BUFFER_BIT)
+    }
+    g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
+    g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
+  }
+
+  private stampTrail(
+    g: GL,
+    matrix: Float32Array | number[],
+    count: number,
+    mapFb: unknown,
+    mapVp: Int32Array,
+  ) {
+    if (!this.fadeProg || !this.trailFbo || !this.quadBuf) return
+    const canvas = this.map?.getCanvas()
+    if (!canvas) return
+    this.ensureTrail(g, canvas.width, canvas.height)
+    if (!this.trail0 || !this.trail1) return
+    g.bindFramebuffer(g.FRAMEBUFFER, this.trailFbo)
+    g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, this.trail1, 0)
+    g.viewport(0, 0, this.trailW, this.trailH)
+    g.disable(g.DEPTH_TEST)
+    g.disable(g.BLEND)
+    g.useProgram(this.fadeProg)
+    g.activeTexture(g.TEXTURE0)
+    g.bindTexture(g.TEXTURE_2D, this.trail0)
+    g.uniform1i(g.getUniformLocation(this.fadeProg, 'u_tex'), 0)
+    const moving = !!this.map?.isMoving()
+    g.uniform1f(g.getUniformLocation(this.fadeProg, 'u_fade'), moving ? 0 : TRAIL_FADE)
+    g.bindBuffer(g.ARRAY_BUFFER, this.quadBuf)
+    g.enableVertexAttribArray(0)
+    g.vertexAttribPointer(0, 2, g.FLOAT, false, 0, 0)
+    g.drawArrays(g.TRIANGLE_STRIP, 0, 4)
+    g.disableVertexAttribArray(0)
+    if (!moving) this.drawParticles(g, matrix, count)
+    const tmp = this.trail0
+    this.trail0 = this.trail1
+    this.trail1 = tmp
+    g.bindFramebuffer(g.FRAMEBUFFER, mapFb as WebGLFramebuffer | null)
+    g.viewport(mapVp[0], mapVp[1], mapVp[2], mapVp[3])
+  }
+
+  private blitTrail(g: GL) {
+    if (!this.blitProg || !this.trail0 || !this.quadBuf) return
+    g.enable(g.BLEND)
+    g.blendFunc(g.ONE, g.ONE_MINUS_SRC_ALPHA)
+    g.disable(g.DEPTH_TEST)
+    g.useProgram(this.blitProg)
+    g.activeTexture(g.TEXTURE0)
+    g.bindTexture(g.TEXTURE_2D, this.trail0)
+    g.uniform1i(g.getUniformLocation(this.blitProg, 'u_tex'), 0)
+    g.uniform1f(g.getUniformLocation(this.blitProg, 'u_gain'), TRAIL_GAIN)
+    g.bindBuffer(g.ARRAY_BUFFER, this.quadBuf)
+    g.enableVertexAttribArray(0)
+    g.vertexAttribPointer(0, 2, g.FLOAT, false, 0, 0)
+    g.drawArrays(g.TRIANGLE_STRIP, 0, 4)
+    g.disableVertexAttribArray(0)
+  }
+
   private updateParticles(g: GL) {
     if (!this.updateProg || !this.fbo || !this.ptex0 || !this.ptex1 || !this.quadBuf) return
     const prevFb = g.getParameter(g.FRAMEBUFFER_BINDING)
@@ -774,7 +884,7 @@ export class ParticleLayer {
   private drawParticles(g: GL, matrix: Float32Array | number[], count: number) {
     if (!this.drawProg) return
     g.enable(g.BLEND)
-    g.blendFunc(g.SRC_ALPHA, g.ONE_MINUS_SRC_ALPHA)
+    g.blendFunc(g.ONE, g.ONE_MINUS_SRC_ALPHA)
     g.disable(g.DEPTH_TEST)
     g.disableVertexAttribArray(0)
     g.useProgram(this.drawProg)

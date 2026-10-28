@@ -13,7 +13,7 @@ export type BBox4 = [west: number, south: number, east: number, north: number]
  * Visible field UV (plus pad) for the current camera.
  * Global packs stay [-180,-90,180,90]; the camera is only a window — never letterbox the curtain.
  */
-export function fieldViewUv(view: LonLatView, bbox: BBox4, pad = 0.16): BBox4 {
+export function fieldViewUv(view: LonLatView, bbox: BBox4, pad = 0.22): BBox4 {
   const [lon0, lat0, lon1, lat1] = bbox
   const lonSpan = lon1 - lon0 || 1
   const latSpan = lat1 - lat0 || 1
