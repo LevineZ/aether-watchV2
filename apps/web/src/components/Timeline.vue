@@ -1,79 +1,125 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useFieldStore } from '@/stores/field'
 import { useT } from '@/i18n'
-import { mapRuntime } from '@/map/runtime'
+import { useUiStore } from '@/stores/ui'
 
-const field = useFieldStore()
 const t = useT()
+const ui = useUiStore()
 
-function download() {
-  const frame = field.frame
-  const blob = new Blob(
-    [
-      JSON.stringify(
-        {
-          note: '示例数据 · FieldFrame meta only',
-          nx: frame?.nx,
-          ny: frame?.ny,
-          bbox: frame?.bbox,
-          time: frame?.time,
-          meta: frame?.meta,
-        },
-        null,
-        2,
-      ),
-    ],
-    { type: 'application/json' },
-  )
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = 'aether-field-meta.json'
-  a.click()
-  URL.revokeObjectURL(a.href)
+const dateLabel = computed(() => `${t.value.today} · 10/27`)
+const thick = computed(() => ui.page === 'desk')
+const live = computed(() => ui.page === 'desk')
+
+function togglePlay() {
+  if (!live.value) return
+  ui.playing = !ui.playing
 }
-
-const lodLabel = computed(() => {
-  const lod = mapRuntime.particles?.getLod() ?? 'peak'
-  return lod === 'peak' ? '400k' : lod
-})
 </script>
 
 <template>
-  <div class="tl glass">
-    <p class="note">{{ t.singleFrame }}</p>
-    <div class="meta subtle">LOD {{ lodLabel }}</div>
-    <button class="btn-ghost" type="button" @click="download">{{ t.download }}</button>
-  </div>
+  <footer class="tl" :class="{ thick, dim: !live }">
+    <button class="round" type="button" :disabled="!live" aria-label="prev">
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M5 4v12M15 5v10L8 10z" />
+      </svg>
+    </button>
+    <button class="round" type="button" :disabled="!live" :title="live ? t.play : t.noTimes" @click="togglePlay">
+      <svg v-if="!ui.playing" viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M7 4.5v11l9-5.5z" />
+      </svg>
+      <svg v-else viewBox="0 0 20 20" aria-hidden="true">
+        <rect x="6" y="5" width="3" height="10" rx="0.6" />
+        <rect x="11" y="5" width="3" height="10" rx="0.6" />
+      </svg>
+    </button>
+    <button class="date pill" type="button" disabled>{{ live ? dateLabel : t.noTimes }}</button>
+    <div class="axis" role="slider" aria-valuenow="0" :aria-label="live ? t.deskAxis : t.noTimes">
+      <span class="line" />
+      <span class="knob" />
+    </div>
+  </footer>
 </template>
 
 <style scoped>
 .tl {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  height: 76px;
+  left: 16px;
+  right: 72px;
+  bottom: 16px;
+  z-index: 5;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  pointer-events: none;
+}
+.tl > * {
+  pointer-events: auto;
+}
+.tl.dim {
+  opacity: 0.42;
+}
+.tl.thick .round {
+  width: 48px;
+  height: 48px;
+}
+.tl.thick .date {
+  height: 48px;
+}
+.tl.thick .axis {
+  height: 48px;
+}
+.tl.thick .line {
+  height: 4px;
+}
+.round {
+  width: 40px;
+  height: 40px;
+  border-radius: 99px;
+  background: var(--chrome);
+  color: var(--chrome-ink);
+  border: 1px solid var(--panel-border);
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.round:disabled {
+  cursor: default;
+}
+.round svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+.date {
+  height: 40px;
   padding: 0 14px;
-  z-index: 3;
-}
-.note {
-  flex: 1;
-  margin: 0;
   font-size: 13px;
-  color: var(--ink-muted);
 }
-.meta {
-  font-size: 11px;
-  font-family: var(--font-mono);
-  white-space: nowrap;
+.axis {
+  position: relative;
+  flex: 1;
+  height: 40px;
 }
-@media (max-width: 720px) {
-  .meta {
-    display: none;
-  }
+.line {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.28);
+  transform: translateY(-50%);
+  border-radius: 99px;
+}
+.knob {
+  position: absolute;
+  left: 42%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 99px;
+  background: var(--primary);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 </style>

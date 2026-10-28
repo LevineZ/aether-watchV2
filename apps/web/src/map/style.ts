@@ -4,12 +4,17 @@ const FONT = ['Noto Sans Regular']
 
 function labelLayout(size: unknown, extra: Record<string, unknown> = {}) {
   return {
-    'text-field': ['get', 'name'],
+    'text-field': [
+      'case',
+      ['has', 'temp'],
+      ['concat', ['get', 'name'], ' ', ['to-string', ['get', 'temp']], '°'],
+      ['get', 'name'],
+    ],
     'text-font': FONT,
     'text-size': size,
     'text-padding': 6,
     'text-optional': true,
-    'text-max-width': 7,
+    'text-max-width': 8,
     'text-allow-overlap': false,
     'text-ignore-placement': false,
     'symbol-sort-key': ['get', 'rank'],
@@ -18,21 +23,20 @@ function labelLayout(size: unknown, extra: Record<string, unknown> = {}) {
 }
 
 const LABEL_PAINT = {
-  'text-color': '#c8d6e5',
-  'text-halo-color': 'rgba(10, 22, 40, 0.6)',
-  'text-halo-width': 1.25,
-  'text-halo-blur': 0.2,
+  'text-color': '#ffffff',
+  'text-halo-color': 'rgba(0, 0, 0, 0.45)',
+  'text-halo-width': 1.15,
+  'text-halo-blur': 0.35,
 }
 
-/** 远 11–12 / 近 13–14 */
 const SIZE_FAR_NEAR = ['interpolate', ['linear'], ['zoom'], 0, 11, 2.4, 12, 5, 13, 7.5, 14]
 
-/** 粒子插在第一层注记之前，地名始终压在场上并走碰撞避让。 */
+/** 粒子插在第一层注记之前，白岸线/地名压在场上。 */
 export const PLACE_BEFORE_ID = 'place-ocean'
 
 export const mapStyle = {
   version: 8,
-  name: 'aether-ink',
+  name: 'aether-ventusky',
   glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
   sources: {
     openmaptiles: {
@@ -53,31 +57,29 @@ export const mapStyle = {
     {
       id: 'bg',
       type: 'background',
-      paint: { 'background-color': '#0b1a2e' },
+      paint: { 'background-color': '#0d0d0d' },
+    },
+    {
+      id: 'land',
+      type: 'fill',
+      source: 'land',
+      paint: { 'fill-color': '#1a1a1a', 'fill-opacity': 1 },
     },
     {
       id: 'water',
       type: 'fill',
       source: 'openmaptiles',
       'source-layer': 'water',
-      paint: { 'fill-color': '#0a1628' },
+      paint: { 'fill-color': '#0d0d0d', 'fill-opacity': 1 },
     },
     {
-      id: 'land',
-      type: 'fill',
-      source: 'land',
-      paint: {
-        'fill-color': '#13243B',
-        'fill-opacity': 1,
-      },
-    },
-    {
-      id: 'land-line',
+      id: 'coast-line',
       type: 'line',
       source: 'land',
       paint: {
-        'line-color': 'rgba(90,200,230,0.22)',
-        'line-width': 0.8,
+        'line-color': '#9aa0a6',
+        'line-width': 0.85,
+        'line-opacity': 0.85,
       },
     },
     {
@@ -87,21 +89,9 @@ export const mapStyle = {
       'source-layer': 'boundary',
       filter: ['all', ['==', ['to-number', ['get', 'admin_level']], 2], ['!=', ['get', 'maritime'], 1]],
       paint: {
-        'line-color': 'rgba(90,200,230,0.32)',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.5, 6, 1.2],
-      },
-    },
-    {
-      id: 'boundary-state',
-      type: 'line',
-      source: 'openmaptiles',
-      'source-layer': 'boundary',
-      minzoom: 3.4,
-      filter: ['==', ['to-number', ['get', 'admin_level']], 4],
-      paint: {
-        'line-color': 'rgba(90,200,230,0.16)',
-        'line-width': 0.6,
-        'line-dasharray': [3, 2],
+        'line-color': '#6b7280',
+        'line-width': 0.45,
+        'line-opacity': 0.22,
       },
     },
     {
@@ -109,52 +99,40 @@ export const mapStyle = {
       type: 'symbol',
       source: 'places',
       minzoom: 0,
-      maxzoom: 3.8,
+      maxzoom: 3.2,
       filter: ['==', ['get', 'kind'], 'ocean'],
-      layout: labelLayout(['interpolate', ['linear'], ['zoom'], 0, 12, 3, 13, 5, 14], {
-        'text-letter-spacing': 0.12,
-        'text-padding': 14,
+      layout: labelLayout(['interpolate', ['linear'], ['zoom'], 0, 11, 3, 12], {
+        'text-letter-spacing': 0.1,
+        'text-padding': 16,
       }),
-      paint: LABEL_PAINT,
+      paint: { ...LABEL_PAINT, 'text-opacity': 0.8 },
     },
     {
       id: 'place-country',
       type: 'symbol',
       source: 'places',
       minzoom: 0,
-      maxzoom: 4.4,
+      maxzoom: 4.2,
       filter: ['==', ['get', 'kind'], 'country'],
       layout: labelLayout(SIZE_FAR_NEAR, { 'text-padding': 10 }),
       paint: LABEL_PAINT,
     },
     {
-      id: 'place-sea',
-      type: 'symbol',
-      source: 'places',
-      minzoom: 3.2,
-      filter: ['==', ['get', 'kind'], 'sea'],
-      layout: labelLayout(['interpolate', ['linear'], ['zoom'], 3.2, 11, 6, 13], {
-        'text-letter-spacing': 0.08,
-        'text-padding': 8,
-      }),
-      paint: { ...LABEL_PAINT, 'text-opacity': 0.88 },
-    },
-    {
       id: 'place-capital',
       type: 'symbol',
       source: 'places',
-      minzoom: 2.5,
+      minzoom: 0,
       filter: ['==', ['get', 'kind'], 'capital'],
-      layout: labelLayout(SIZE_FAR_NEAR, { 'text-padding': 5 }),
+      layout: labelLayout(SIZE_FAR_NEAR, { 'text-padding': 4, 'text-allow-overlap': true }),
       paint: LABEL_PAINT,
     },
     {
       id: 'place-region',
       type: 'symbol',
       source: 'places',
-      minzoom: 3.15,
+      minzoom: 0.9,
       filter: ['==', ['get', 'kind'], 'province'],
-      layout: labelLayout(['interpolate', ['linear'], ['zoom'], 3.2, 11, 5, 13, 7, 14], {
+      layout: labelLayout(['interpolate', ['linear'], ['zoom'], 1.2, 11, 5, 13, 7, 14], {
         'text-padding': 4,
       }),
       paint: LABEL_PAINT,
@@ -163,7 +141,7 @@ export const mapStyle = {
       id: 'place-city',
       type: 'symbol',
       source: 'places',
-      minzoom: 3.55,
+      minzoom: 3.2,
       filter: ['==', ['get', 'kind'], 'city'],
       layout: labelLayout(['interpolate', ['linear'], ['zoom'], 3.6, 11, 6, 13, 8, 14], {
         'text-padding': 3,

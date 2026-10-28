@@ -1,12 +1,12 @@
 import { PAGE_DEFAULT_KIND, type FieldKind } from '@aether/field'
 import { defineStore } from 'pinia'
-import { mapRuntime, applyCamera } from '@/map/runtime'
+import { mapRuntime, applyCamera, setPlaceLabels } from '@/map/runtime'
 
 export type PageId = 'global' | 'desk' | 'regional' | 'about'
 export type Locale = 'zh' | 'en'
 
-function overlayOf(kind: FieldKind): 'none' | 'wind' | 'temp' | 'precip' {
-  if (kind === 'temp' || kind === 'precip' || kind === 'wind') return kind
+function overlayOf(kind: FieldKind): 'none' | 'wind' | 'temp' | 'precip' | 'ocean' {
+  if (kind === 'temp' || kind === 'precip' || kind === 'wind' || kind === 'ocean') return kind
   return 'none'
 }
 
@@ -16,13 +16,16 @@ export const useUiStore = defineStore('ui', {
     locale: 'zh' as Locale,
     playing: false,
     hour: 0,
-    density: 0.48,
+    density: 0.42,
     pointSize: 1,
     strength: 1,
     kind: 'wind' as FieldKind,
-    overlay: 'wind' as 'none' | 'wind' | 'temp' | 'precip',
+    overlay: 'wind' as 'none' | 'wind' | 'temp' | 'precip' | 'ocean',
     selectedCity: '北京',
     switching: false,
+    labelsOn: true,
+    uploadOpen: false,
+    regionalMode: 'demo' as 'demo' | 'inspect',
   }),
   actions: {
     setKind(kind: FieldKind) {
@@ -45,6 +48,10 @@ export const useUiStore = defineStore('ui', {
     },
     toggleLocale() {
       this.locale = this.locale === 'zh' ? 'en' : 'zh'
+    },
+    toggleLabels() {
+      this.labelsOn = !this.labelsOn
+      setPlaceLabels(this.labelsOn)
     },
   },
 })

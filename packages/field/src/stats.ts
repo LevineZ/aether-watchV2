@@ -1,4 +1,5 @@
-import type { FieldFrame } from './types'
+import { percentileSorted } from './percentiles'
+import { TEMP_SCALAR_RANGE, type FieldFrame } from './types'
 
 export type FieldStats = {
   meanSpeed: number
@@ -28,9 +29,27 @@ export function fieldStats(frame: FieldFrame): FieldStats {
   }
 }
 
+/** 场内 |UV| 分位，供风幕归一。禁止固定 /24。 */
+export function speedPercentileRange(frame: FieldFrame, lo = 0.05, hi = 0.95): [number, number] {
+  const n = frame.nx * frame.ny
+  const stride = n > 80_000 ? 4 : 1
+  const speeds: number[] = []
+  for (let i = 0; i < n; i += stride) {
+    if (frame.mask && frame.mask[i] === 0) continue
+    const s = Math.hypot(frame.u[i], frame.v[i])
+    if (Number.isFinite(s)) speeds.push(s)
+  }
+  speeds.sort((a, b) => a - b)
+  if (!speeds.length) return [0, 1]
+  const a = percentileSorted(speeds, lo)
+  const b = percentileSorted(speeds, hi)
+  if (b - a < 0.35) return [Math.max(0, a), Math.max(0, a) + 0.35]
+  return [a, b]
+}
+
 export function scalarRange(frame: FieldFrame): [number, number] {
   const kind = frame.kind
-  if (kind === 'temp') return [-20, 40]
+  if (kind === 'temp') return TEMP_SCALAR_RANGE
   if (!frame.scalar) return [0, 1]
   let min = Infinity
   let max = -Infinity
