@@ -475,6 +475,7 @@ export class ParticleLayer {
     this.ribbonPx = look.ribbonPx
     this.uvScale = look.uvScale
     this.pool = look.pool
+    this.clearTrail()
     const lonSpan = Math.abs(this.bbox[2] - this.bbox[0])
     this.wrap = lonSpan > 350 ? 1 : 0
     this.syncViewWindow()
@@ -550,6 +551,7 @@ export class ParticleLayer {
     g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR)
     g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, frame.nx, frame.ny, 0, g.RGBA, g.UNSIGNED_BYTE, packed.data)
     this.reseed(g)
+    this.clearTrail()
     this.hasFrame = true
     this.map?.triggerRepaint()
   }
