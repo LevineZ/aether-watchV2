@@ -53,7 +53,7 @@ export const mapStyle = {
     {
       id: 'bg',
       type: 'background',
-      paint: { 'background-color': '#13243B' },
+      paint: { 'background-color': '#0b1524' },
     },
     {
       id: 'land',

@@ -24,7 +24,7 @@ import {
 
 export type PoolId = 'wind' | 'currents'
 /** wind = |UV| speed curtain from the same pack; never a second (temp) pack. */
-export type OverlayMode = 'none' | 'wind' | 'temp' | 'precip'
+export type OverlayMode = 'none' | 'wind' | 'temp' | 'precip' | 'ocean'
 export type FieldStyle = 'wind-fog' | 'currents'
 
 type GL = WebGL2RenderingContext
@@ -123,7 +123,7 @@ function fieldToRgba(frame: FieldFrame): {
   const uSpan = ur[1] - ur[0] || 1
   const vSpan = vr[1] - vr[0] || 1
   const sSpan = sr[1] - sr[0] || 1
-  const [speedLo, speedHi] = kind === 'wind' ? speedPercentileRange(frame) : [0, 1]
+  const [speedLo, speedHi] = kind === 'wind' || kind === 'ocean' ? speedPercentileRange(frame) : [0, 1]
   const soft = oceanMask && frame.mask ? softenOceanMask(frame.mask, frame.nx, frame.ny) : null
   for (let i = 0; i < n; i++) {
     const i4 = i * 4
@@ -141,7 +141,7 @@ function fieldToRgba(frame: FieldFrame): {
     data[i4 + 1] = finite ? Math.max(0, Math.min(255, Math.round(((v - vr[0]) / vSpan) * 255))) : 0
     data[i4 + 2] = aliveByte
     let packedScalar = 0
-    if (kind === 'wind') {
+    if (kind === 'wind' || kind === 'ocean') {
       // Same-pack |UV| curtain, field p05–p95. Never a second (temp) pack; never /24.
       packedScalar = finite ? unitInterval(Math.hypot(u, v), speedLo, speedHi) : 0
     } else if (frame.scalar) {
@@ -199,7 +199,7 @@ export const KIND_LOOK: Record<
   },
   ocean: {
     style: 'currents',
-    overlay: 'none',
+    overlay: 'ocean',
     speed: 0.4,
     drop: 0.0011,
     size: 2.9,
@@ -761,9 +761,10 @@ export class ParticleLayer {
 
   private drawScalar(g: GL, matrix: Float32Array | number[]) {
     if (!this.scalarProg) return
-    const lonSeg = this.wrap ? 96 : 18
-    const latSeg = this.wrap ? 48 : 12
-    const mode = this.overlay === 'precip' ? 1 : this.overlay === 'wind' ? 2 : 0
+    const lonSeg = this.wrap ? 144 : 36
+    const latSeg = this.wrap ? 72 : 24
+    const mode =
+      this.overlay === 'precip' ? 1 : this.overlay === 'wind' ? 2 : this.overlay === 'ocean' ? 3 : 0
     g.enable(g.BLEND)
     g.blendFunc(g.SRC_ALPHA, g.ONE_MINUS_SRC_ALPHA)
     g.disable(g.DEPTH_TEST)

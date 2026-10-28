@@ -311,47 +311,73 @@ uniform float u_hatch;
 uniform float u_wrap;
 in vec2 v_uv;
 out vec4 fragColor;
+
+// Ventusky-like meteorological ramps on OUR FieldFrame. No remote tiles.
+vec3 mix7(float t, vec3 a, vec3 b, vec3 c, vec3 d, vec3 e, vec3 f, vec3 g) {
+  t = clamp(t, 0.0, 1.0);
+  float s = t * 6.0;
+  if (s < 1.0) return mix(a, b, s);
+  if (s < 2.0) return mix(b, c, s - 1.0);
+  if (s < 3.0) return mix(c, d, s - 2.0);
+  if (s < 4.0) return mix(d, e, s - 3.0);
+  if (s < 5.0) return mix(e, f, s - 4.0);
+  return mix(f, g, s - 5.0);
+}
+
 void main() {
   vec4 w = texture(u_wind, v_uv);
   float t = w.a;
+  float mask = w.b;
   float ey = min(v_uv.y, 1.0 - v_uv.y);
   float ex = min(v_uv.x, 1.0 - v_uv.x);
-  float edge = u_wrap > 0.5 ? smoothstep(0.0, 0.03, ey) : smoothstep(0.0, 0.04, min(ex, ey));
+  float edge = u_wrap > 0.5 ? smoothstep(0.0, 0.012, ey) : smoothstep(0.0, 0.02, min(ex, ey));
   vec4 color;
   if (u_mode < 0.5) {
-    vec3 blue = vec3(0.12, 0.28, 0.72);
-    vec3 cyan = vec3(0.35, 0.82, 0.90);
-    vec3 yellow = vec3(0.95, 0.84, 0.28);
-    vec3 red = vec3(0.86, 0.22, 0.18);
-    vec3 c = t < 0.33 ? mix(blue, cyan, t / 0.33)
-      : t < 0.66 ? mix(cyan, yellow, (t - 0.33) / 0.33)
-      : mix(yellow, red, (t - 0.66) / 0.34);
-    float a = mix(0.5, 0.7, smoothstep(0.0, 1.0, t));
-    color = vec4(c, a);
+    vec3 c = mix7(t,
+      vec3(0.227, 0.039, 0.431),
+      vec3(0.118, 0.235, 0.722),
+      vec3(0.071, 0.627, 0.784),
+      vec3(0.180, 0.800, 0.443),
+      vec3(0.945, 0.769, 0.059),
+      vec3(0.902, 0.494, 0.133),
+      vec3(0.753, 0.224, 0.169));
+    color = vec4(c, mix(0.86, 0.94, t));
   } else if (u_mode < 1.5) {
-    float wet = smoothstep(0.0, 1.0, t);
-    float a = mix(0.0, 0.56, pow(wet, 0.82));
+    float wet = smoothstep(0.02, 1.0, t);
+    float a = mix(0.0, 0.88, pow(wet, 0.72));
     if (u_hatch > 0.5) {
       float hatch = abs(fract((v_uv.x + v_uv.y) * 42.0) - 0.5);
-      float line = smoothstep(0.22, 0.08, hatch);
-      a = mix(a, line * wet * 0.7, 0.55);
+      a = mix(a, smoothstep(0.22, 0.08, hatch) * wet * 0.7, 0.35);
     }
-    vec3 light = vec3(0.45, 0.88, 0.96);
-    vec3 indigo = vec3(0.18, 0.22, 0.68);
-    vec3 c = mix(light, indigo, smoothstep(0.08, 0.88, t));
+    vec3 c = mix7(t,
+      vec3(0.780, 0.925, 0.980),
+      vec3(0.400, 0.820, 0.950),
+      vec3(0.180, 0.470, 0.860),
+      vec3(0.160, 0.220, 0.720),
+      vec3(0.420, 0.140, 0.680),
+      vec3(0.720, 0.080, 0.480),
+      vec3(0.830, 0.080, 0.220));
     color = vec4(c, a);
+  } else if (u_mode < 2.5) {
+    vec3 c = mix7(t,
+      vec3(0.078, 0.227, 0.420),
+      vec3(0.090, 0.510, 0.620),
+      vec3(0.122, 0.690, 0.400),
+      vec3(0.780, 0.831, 0.165),
+      vec3(0.941, 0.627, 0.125),
+      vec3(0.886, 0.227, 0.173),
+      vec3(0.545, 0.102, 0.478));
+    color = vec4(c, mix(0.82, 0.92, t));
   } else {
-    vec3 c0 = vec3(0.08, 0.16, 0.42);
-    vec3 c1 = vec3(0.15, 0.55, 0.85);
-    vec3 c2 = vec3(0.25, 0.82, 0.72);
-    vec3 c3 = vec3(0.95, 0.86, 0.28);
-    vec3 c4 = vec3(0.86, 0.28, 0.16);
-    vec3 c = t < 0.25 ? mix(c0, c1, t / 0.25)
-      : t < 0.50 ? mix(c1, c2, (t - 0.25) / 0.25)
-      : t < 0.75 ? mix(c2, c3, (t - 0.50) / 0.25)
-      : mix(c3, c4, (t - 0.75) / 0.25);
-    float a = mix(0.4, 0.58, smoothstep(0.0, 1.0, t));
-    color = vec4(c, a);
+    vec3 c = mix7(t,
+      vec3(0.040, 0.140, 0.260),
+      vec3(0.050, 0.290, 0.430),
+      vec3(0.080, 0.520, 0.560),
+      vec3(0.200, 0.760, 0.620),
+      vec3(0.780, 0.860, 0.380),
+      vec3(0.940, 0.720, 0.220),
+      vec3(0.900, 0.380, 0.160));
+    color = vec4(c, mix(0.55, 0.78, t) * mask);
   }
   color.a *= edge;
   fragColor = color;
