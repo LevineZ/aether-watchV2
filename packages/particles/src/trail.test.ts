@@ -10,6 +10,8 @@ describe('Ventusky-like wind silk', () => {
     assert.match(src, /drop: 0\.00008/)
     assert.match(src, /size: 1\.6/)
     assert.match(src, /trailStepUv/)
+    const shaders = readFileSync(new URL('./shaders.ts', import.meta.url), 'utf8')
+    assert.match(shaders, /c\.r \/ 255\.0 \+ c\.b/)
     assert.match(src, /Do not reseed on idle/)
   })
 })

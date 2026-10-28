@@ -29,11 +29,12 @@ in vec2 v_uv;
 out vec4 fragColor;
 
 vec2 decode(vec4 c) {
-  return vec2(c.r + c.b / 255.0, c.g + c.a / 255.0);
+  return vec2(c.r / 255.0 + c.b, c.g / 255.0 + c.a);
 }
 vec4 encode(vec2 p) {
   p = clamp(p, 0.0, 0.999);
-  return vec4(fract(p * 255.0), floor(p * 255.0) / 255.0);
+  vec2 rg = fract(p * 255.0);
+  return vec4(rg, p - rg / 255.0);
 }
 float rand(const vec2 co) {
   float t = 12.9898 * co.x + 78.233 * co.y;
@@ -90,7 +91,7 @@ void main() {
 
 const MERCATOR = `
 vec2 decode(vec4 c) {
-  return vec2(c.r + c.b / 255.0, c.g + c.a / 255.0);
+  return vec2(c.r / 255.0 + c.b, c.g / 255.0 + c.a);
 }
 vec2 mercator(vec2 lonlat) {
   float lon = lonlat.x;
