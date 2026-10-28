@@ -40,7 +40,8 @@ function reset() {
 <style scoped>
 .tools {
   position: absolute;
-  top: 64px;
+  top: auto;
+  bottom: 64px;
   right: 12px;
   z-index: 4;
   display: flex;
@@ -65,7 +66,6 @@ function reset() {
 }
 @media (max-width: 720px) {
   .tools {
-    top: auto;
     bottom: 120px;
   }
 }
