@@ -91,7 +91,7 @@ export const useFieldStore = defineStore('field', {
       mapRuntime.particles?.setFrame(frame)
       lockBounds(ui.page === 'regional' ? (frame?.bbox ?? null) : null, ui.page)
       if (frame && (ui.page === 'desk' || ui.page === 'global')) {
-        fitFieldView(ui.page, frame.bbox)
+        fitFieldView(ui.page)
       }
     },
     dropGlobalBind() {

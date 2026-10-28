@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { visualCount, zoomCountMul } from './lod.ts'
 
-describe('n ∝ 1/zoom²', () => {
+describe('n ∝ 1/zoom^0.85', () => {
   test('higher zoom yields fewer particles', () => {
     assert.ok(zoomCountMul(1.35) > zoomCountMul(3.4))
     assert.ok(zoomCountMul(3.4) > zoomCountMul(5.1))

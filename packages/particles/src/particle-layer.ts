@@ -8,6 +8,7 @@ import {
   type FieldKind,
 } from '@aether/field'
 import { PARTICLE_TEX, visualCount, type LodLevel } from './lod'
+import { fieldViewUv } from './view-uv'
 import {
   DRAW_FS,
   DRAW_VS,
@@ -63,11 +64,18 @@ function createRgbaTex(gl: GL, w: number, h: number, data: Uint8Array | null, fi
   return t
 }
 
-function seedParticles(w: number, h: number): Uint8Array {
+function seedParticles(
+  w: number,
+  h: number,
+  view: [number, number, number, number] = [0, 0, 1, 1],
+): Uint8Array {
+  const [u0, v0, u1, v1] = view
+  const du = Math.max(0.001, u1 - u0)
+  const dv = Math.max(0.001, v1 - v0)
   const data = new Uint8Array(w * h * 4)
   for (let i = 0; i < w * h; i++) {
-    const x = Math.random() * 0.999
-    const y = Math.random() * 0.999
+    const x = Math.min(0.999, u0 + Math.random() * du)
+    const y = Math.min(0.999, v0 + Math.random() * dv)
     const bx = Math.min(254, Math.floor(x * 255))
     const by = Math.min(254, Math.floor(y * 255))
     const i4 = i * 4
@@ -164,12 +172,20 @@ function fieldToRgba(frame: FieldFrame): {
   return { data, uMin: ur[0], uMax: ur[1], vMin: vr[0], vMax: vr[1], speedLo, speedHi }
 }
 
-/** 关收 tip 默认平流 0.005。风丝全球 ×0.18 / 预报台·区域 ×0.09；洋流冻结 ×0.40。 */
+/** 关收 tip 默认平流 0.005。风丝全球 ×0.18 / 东亚窗 ×0.09；洋流冻结 ×0.32。降雨为下落，不走 UV 平流。 */
 export const ADVECT_STEP = 0.0025
 export const WIND_SPEED_GLOBAL = 0.18
 export const WIND_SPEED_DESK = 0.09
 /** @deprecated 用 WIND_SPEED_DESK / WIND_SPEED_GLOBAL */
 export const WIND_DESK_SPEED_SCALE = WIND_SPEED_DESK / WIND_SPEED_GLOBAL
+
+export function kindCode(kind: FieldKind): number {
+  if (kind === 'ocean') return 1
+  if (kind === 'temp') return 2
+  if (kind === 'precip') return 3
+  return 0
+}
+
 export const KIND_LOOK: Record<
   FieldKind,
   {
@@ -189,23 +205,23 @@ export const KIND_LOOK: Record<
     style: 'wind-fog',
     overlay: 'wind',
     speed: WIND_SPEED_GLOBAL,
-    drop: 0.00055,
+    drop: 0.0008,
     size: 0.85,
-    color: [0.91, 0.957, 1.0, 0.22],
-    ribbonDeg: 7.4,
-    ribbonPx: 0.62,
+    color: [0.91, 0.957, 1.0, 0.55],
+    ribbonDeg: 5.8,
+    ribbonPx: 0.72,
     uvScale: 1,
     pool: 'wind',
   },
   ocean: {
     style: 'currents',
     overlay: 'ocean',
-    speed: 0.4,
-    drop: 0.0011,
+    speed: 0.32,
+    drop: 0.0014,
     size: 2.9,
-    color: [0.494, 0.784, 0.91, 0.24],
-    ribbonDeg: 2.85,
-    ribbonPx: 6.6,
+    color: [0.35, 0.78, 0.88, 0.42],
+    ribbonDeg: 3.2,
+    ribbonPx: 7.2,
     uvScale: 1,
     pool: 'currents',
   },
@@ -224,14 +240,14 @@ export const KIND_LOOK: Record<
   precip: {
     style: 'currents',
     overlay: 'precip',
-    speed: 0,
-    drop: 0.0016,
-    size: 1.5,
-    color: [0.45, 0.76, 0.9, 0.14],
-    ribbonDeg: 0.85,
-    ribbonPx: 2.3,
+    speed: 0.22,
+    drop: 0.014,
+    size: 1.25,
+    color: [0.72, 0.90, 1.0, 0.7],
+    ribbonDeg: 1.15,
+    ribbonPx: 1.35,
     uvScale: 0,
-    pool: 'currents',
+    pool: 'wind',
   },
 }
 
@@ -243,8 +259,11 @@ export type ParticleLayerOptions = {
  * MapLibre CustomLayer：GPU 粒子。
  * - 粒子 UV 只活在 FieldFrame.bbox 内；每帧用当前相机 defaultProjectionData 重绑，禁止缓存 world→UV。
  * - 空闲 peak≈40 万；拖动停平流、计数不砍；松手 peak + 重投。
- * - wind：同包 |UV| 色幕 + 近白细丝；禁止再叠温度包。
- * - temp/precip：只画 scalar；粒子 LOD=paused / count=0，禁止 UV 平流。
+ * - wind：同包 |UV| 色幕 + 风速着色丝带；禁止再叠温度包。
+ * - temp：只画 scalar 热幕。
+ * - precip：湿幕 + 下落雨丝（湿区重生）。
+ * - ocean：流速色幕 + 宽纱。
+ * - 粒子只活在相机可见 UV 窗，全球包在东亚窗里仍密。
  */
 export class ParticleLayer {
   id: string
@@ -272,6 +291,7 @@ export class ParticleLayer {
   private speedRef = 12
   private lod: LodLevel = 'peak'
   private wrap = 1
+  private viewUv: [number, number, number, number] = [0, 0, 1, 1]
   private style: FieldStyle = 'wind-fog'
   private overlay: OverlayMode = 'none'
   private kind: FieldKind = 'wind'
@@ -368,7 +388,7 @@ export class ParticleLayer {
   }
 
   setLod(level: LodLevel) {
-    if (this.kind === 'temp' || this.kind === 'precip') {
+    if (this.kind === 'temp') {
       this.advecting = false
       this.lod = 'paused'
       this.map?.triggerRepaint()
@@ -398,7 +418,7 @@ export class ParticleLayer {
   }
 
   resume() {
-    if (this.kind === 'temp' || this.kind === 'precip') {
+    if (this.kind === 'temp') {
       this.advecting = false
       this.lod = 'paused'
       this.map?.triggerRepaint()
@@ -430,14 +450,9 @@ export class ParticleLayer {
     this.pool = look.pool
     const lonSpan = Math.abs(this.bbox[2] - this.bbox[0])
     this.wrap = lonSpan > 350 ? 1 : 0
-    if (kind === 'wind' && this.wrap < 0.5) {
-      this.speed = WIND_SPEED_DESK
-    }
-    if (this.wrap) {
-      // Ocean freeze c794d1b length. Wind: keep long fine strands, not globe-spanning sheets.
-      this.ribbonDeg = look.ribbonDeg * (kind === 'ocean' ? 5.2 : 3.6)
-    }
-    if (kind === 'temp' || kind === 'precip') {
+    this.syncViewWindow()
+    this.syncRibbonFromView()
+    if (kind === 'temp') {
       this.advecting = false
       this.lod = 'paused'
     } else if (this.lod === 'paused') {
@@ -474,13 +489,14 @@ export class ParticleLayer {
   }
 
   showParticles(): boolean {
-    return this.kind !== 'temp' && this.kind !== 'precip'
+    return this.kind !== 'temp'
   }
 
   drawCount(): number {
-    if (this.kind === 'temp' || this.kind === 'precip') return 0
+    if (this.kind === 'temp') return 0
     return visualCount({
       ocean: this.kind === 'ocean',
+      precip: this.kind === 'precip',
       regionalWindow: this.wrap < 0.5,
       density: this.density,
       zoom: this.map?.getZoom() ?? 1.35,
@@ -516,6 +532,8 @@ export class ParticleLayer {
     const g = this.gl
     if (!g || !this.hasFrame) return
     this.captureProj(args)
+    this.syncViewWindow()
+    this.syncRibbonFromView()
     if (this.pendingReseed) {
       this.reseed(g)
       this.pendingReseed = false
@@ -530,6 +548,8 @@ export class ParticleLayer {
     const g = this.gl
     if (!g || !this.hasFrame) return
     this.captureProj(args)
+    this.syncViewWindow()
+    this.syncRibbonFromView()
     if (!this.drawProg) return
     const matrix = this.proj?.mainMatrix
     if (!matrix) return
@@ -567,8 +587,7 @@ export class ParticleLayer {
       g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
       g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
       this.drawRibbons(g, matrix, count)
-      // Wind: strands only — ban short cyan point grid. Ocean freeze keeps sparse heads.
-      const heads = this.kind === 'ocean' ? 0.04 : 0
+      const heads = this.kind === 'ocean' ? 0.04 : this.kind === 'precip' ? 0.14 : 0
       this.drawParticles(g, matrix, Math.floor(count * heads))
     }
 
@@ -594,6 +613,49 @@ export class ParticleLayer {
     this.applyKindLook(inferKind(frame))
   }
 
+  private viewLonSpan(): number {
+    const map = this.map
+    if (!map) return this.wrap ? 360 : Math.abs(this.bbox[2] - this.bbox[0])
+    try {
+      const b = map.getBounds()
+      return Math.max(8, Math.abs(b.getEast() - b.getWest()))
+    } catch {
+      return this.wrap ? 360 : Math.abs(this.bbox[2] - this.bbox[0])
+    }
+  }
+
+  private syncViewWindow() {
+    const map = this.map
+    if (!map) {
+      this.viewUv = [0, 0, 1, 1]
+      return
+    }
+    try {
+      const b = map.getBounds()
+      this.viewUv = fieldViewUv(
+        { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() },
+        this.bbox,
+      )
+    } catch {
+      this.viewUv = [0, 0, 1, 1]
+    }
+  }
+
+  private syncRibbonFromView() {
+    const look = KIND_LOOK[this.kind]
+    const span = this.viewLonSpan()
+    if (this.kind === 'ocean') {
+      this.ribbonDeg = look.ribbonDeg * (span > 80 ? 4.2 : 1)
+      this.ribbonPx = look.ribbonPx
+    } else if (this.kind === 'precip') {
+      this.ribbonDeg = look.ribbonDeg * Math.min(1.6, Math.max(0.7, span / 70))
+      this.speed = look.speed
+    } else if (this.kind === 'wind') {
+      this.ribbonDeg = look.ribbonDeg * Math.min(2.2, Math.max(0.65, span / 95))
+      this.speed = span < 140 ? WIND_SPEED_DESK : WIND_SPEED_GLOBAL
+    }
+  }
+
   private captureProj(args: unknown) {
     const parsed = parseRenderArgs(args)
     this.proj = parsed.proj
@@ -605,7 +667,8 @@ export class ParticleLayer {
 
   private reseed(g: GL) {
     if (!this.ptex0 || !this.ptex1) return
-    const seed = seedParticles(PARTICLE_TEX.width, PARTICLE_TEX.height)
+    this.syncViewWindow()
+    const seed = seedParticles(PARTICLE_TEX.width, PARTICLE_TEX.height, this.viewUv)
     g.bindTexture(g.TEXTURE_2D, this.ptex0)
     g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, PARTICLE_TEX.width, PARTICLE_TEX.height, 0, g.RGBA, g.UNSIGNED_BYTE, seed)
     g.bindTexture(g.TEXTURE_2D, this.ptex1)
@@ -687,6 +750,15 @@ export class ParticleLayer {
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_uv_scale'), this.uvScale)
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_drop_rate'), this.drop)
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_wrap'), this.wrap)
+    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_motion'), this.kind === 'precip' ? 1 : 0)
+    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_wet_min'), 0.07)
+    g.uniform4f(
+      g.getUniformLocation(this.updateProg, 'u_view'),
+      this.viewUv[0],
+      this.viewUv[1],
+      this.viewUv[2],
+      this.viewUv[3],
+    )
     g.bindBuffer(g.ARRAY_BUFFER, this.quadBuf)
     g.enableVertexAttribArray(0)
     g.vertexAttribPointer(0, 2, g.FLOAT, false, 0, 0)
@@ -723,6 +795,7 @@ export class ParticleLayer {
     g.uniform4f(g.getUniformLocation(this.drawProg, 'u_color'), this.color[0], this.color[1], this.color[2], this.color[3])
     g.uniform1f(g.getUniformLocation(this.drawProg, 'u_style'), this.style === 'currents' ? 1 : 0)
     g.uniform1f(g.getUniformLocation(this.drawProg, 'u_speed_ref'), this.speedRef)
+    g.uniform1f(g.getUniformLocation(this.drawProg, 'u_kind'), kindCode(this.kind))
     g.drawArrays(g.POINTS, 0, count)
   }
 
@@ -755,6 +828,7 @@ export class ParticleLayer {
     g.uniform1f(g.getUniformLocation(this.lineProg, 'u_wrap'), this.wrap)
     g.uniform1f(g.getUniformLocation(this.lineProg, 'u_style'), this.style === 'currents' ? 1 : 0)
     g.uniform1f(g.getUniformLocation(this.lineProg, 'u_speed_ref'), this.speedRef)
+    g.uniform1f(g.getUniformLocation(this.lineProg, 'u_kind'), kindCode(this.kind))
     g.uniform4f(g.getUniformLocation(this.lineProg, 'u_color'), this.color[0], this.color[1], this.color[2], this.color[3])
     g.drawArrays(g.TRIANGLES, 0, ribbonCount * 6)
   }
@@ -779,6 +853,7 @@ export class ParticleLayer {
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_mode'), mode)
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_hatch'), 0)
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_wrap'), this.wrap)
+    g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_time'), performance.now() * 0.001)
     const shifts = this.wrap ? [-360, 0, 360] : [0]
     for (const shift of shifts) {
       g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_lon_shift'), shift)

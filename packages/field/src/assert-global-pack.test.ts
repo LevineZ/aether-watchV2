@@ -40,6 +40,14 @@ describe('isGlobalDemoPack / packForKind', () => {
       assert.equal(PAGE_KIND_PACK.global[kind], pack)
     }
   })
+
+  test('desk binds global packs so the East Asia camera is a window, not a china rectangle', () => {
+    for (const kind of ['wind', 'ocean', 'temp', 'precip'] as const) {
+      const pack = packForKind('desk', kind)
+      assert.equal(pack, `global/${kind}`)
+      assert.equal(isGlobalDemoPack(pack!), true)
+    }
+  })
 })
 
 describe('assertGlobalPack', () => {

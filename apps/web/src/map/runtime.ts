@@ -31,8 +31,13 @@ export const CAMERAS = {
   about: { center: [8, 17] as [number, number], zoom: 1.35, pitch: 0, bearing: 0, globe: false },
 }
 
-/** 预报台 DEMO 窗：china/* 最大范围，相机必须 fit 这份而不是裁到日本以东的黑边。 */
-export const DESK_FIELD_BBOX: BBox = [73, 18, 135, 54]
+/**
+ * 预报台相机窗：东亚含日印，场绑全球包铺满视口。
+ * 禁止再 fit china 数据矩形（那会在两侧露出底图）。
+ */
+export const DESK_VIEW_BBOX: BBox = [68, 6, 152, 54]
+/** @deprecated 预报台不再裁数据窗；仅作旧名别名。 */
+export const DESK_FIELD_BBOX: BBox = DESK_VIEW_BBOX
 
 function projectionType(map: MapLibreMap): string | undefined {
   try {
@@ -117,21 +122,20 @@ export function setPlaceLabels(on: boolean) {
 
 let lastFitKey = ''
 
-export function fitFieldView(page: keyof typeof CAMERAS, bbox?: BBox | null) {
+export function fitFieldView(page: keyof typeof CAMERAS, _bbox?: BBox | null) {
   const map = mapRuntime.map
   if (!map) return
-  const win = page === 'desk' ? (bbox && bbox[2] - bbox[0] > 10 ? bbox : DESK_FIELD_BBOX) : null
-  const key = page === 'desk' ? `desk:${win?.join(',')}` : `${page}:${map.getContainer().clientWidth}`
+  const key = page === 'desk' ? `desk:${DESK_VIEW_BBOX.join(',')}` : `${page}:${map.getContainer().clientWidth}`
   if (key === lastFitKey) return
   lastFitKey = key
   try {
-    if (page === 'desk' && win) {
+    if (page === 'desk') {
       map.fitBounds(
         [
-          [win[0], win[1]],
-          [win[2], win[3]],
+          [DESK_VIEW_BBOX[0], DESK_VIEW_BBOX[1]],
+          [DESK_VIEW_BBOX[2], DESK_VIEW_BBOX[3]],
         ],
-        { padding: { top: 8, bottom: 40, left: 4, right: 12 }, duration: 520, pitch: 0, bearing: 0 },
+        { padding: 0, duration: 520, pitch: 0, bearing: 0 },
       )
       return
     }

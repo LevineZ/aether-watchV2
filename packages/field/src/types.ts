@@ -83,7 +83,7 @@ export const MAX_NC_BYTES = 100 * 1024 * 1024
 
 export const PAGE_PACK: Record<PageId, DemoPackId> = {
   global: 'global/wind',
-  desk: 'china/wind',
+  desk: 'global/wind',
   regional: 'regional/currents',
 }
 
@@ -95,7 +95,7 @@ export const PAGE_DEFAULT_KIND: Record<PageId, FieldKind> = {
 
 /**
  * 页 × 要素 → DEMO 包。缺包返回 null（灰芯片 / 404），禁止跨页回退。
- * Global 只绑 global/* 全球窗；Desk 只用 china/*；Desk 洋流无近岸包。
+ * Global 只绑 global/* 全球窗。Desk 相机是东亚窗，场绑全球包铺满视口，禁止再裁 china 矩形。
  */
 export const PAGE_KIND_PACK: Record<PageId, Record<FieldKind, DemoPackId | null>> = {
   global: {
@@ -105,10 +105,10 @@ export const PAGE_KIND_PACK: Record<PageId, Record<FieldKind, DemoPackId | null>
     precip: 'global/precip',
   },
   desk: {
-    wind: 'china/wind',
-    ocean: null,
-    temp: 'china/temp',
-    precip: 'china/precip',
+    wind: 'global/wind',
+    ocean: 'global/ocean',
+    temp: 'global/temp',
+    precip: 'global/precip',
   },
   regional: {
     wind: 'china/wind',
