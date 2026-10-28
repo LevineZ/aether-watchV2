@@ -383,6 +383,18 @@ export const LINE_VS = makeRibbonVS(FALLBACK_PRELUDE, '')
 export const TRAIL_LINE_VS = makeTrailLineVS(FALLBACK_PRELUDE, '')
 export const makeLineVS = makeRibbonVS
 
+const SILK_RAMP = `
+// Wind filament only: cool teal → amber by |UV|. Never white, never the curtain LUT.
+vec3 silkRamp(float t) {
+  t = clamp(t, 0.0, 1.0);
+  vec3 cool = vec3(0.16, 0.42, 0.92);
+  vec3 teal = vec3(0.10, 0.84, 0.76);
+  vec3 amber = vec3(0.96, 0.52, 0.10);
+  if (t < 0.5) return mix(cool, teal, t * 2.0);
+  return mix(teal, amber, (t - 0.5) * 2.0);
+}
+`
+
 export const DRAW_FS = `#version 300 es
 precision mediump float;
 uniform vec4 u_color;
@@ -394,7 +406,7 @@ in float v_alive;
 in float v_edge;
 in float v_kind;
 out vec4 fragColor;
-${MIX7}
+${SILK_RAMP}
 void main() {
   if (v_alive < 0.45 && v_kind < 2.5) discard;
   if (v_kind > 2.5 && v_alive < 0.06) discard;
@@ -409,6 +421,7 @@ void main() {
   if (v_kind > 0.5 && v_kind < 1.5) {
     a *= mix(0.5, 0.95, nrm);
   } else {
+    rgb = silkRamp(nrm);
     a *= mix(0.12, 1.0, nrm);
   }
   fragColor = vec4(rgb * a, a);
@@ -418,7 +431,6 @@ void main() {
 export const TRAIL_LINE_FS = `#version 300 es
 precision mediump float;
 uniform sampler2D u_wind;
-uniform sampler2D u_lut;
 uniform vec4 u_color;
 uniform float u_kind;
 uniform float u_speed_ref;
@@ -426,6 +438,7 @@ in float v_speed;
 in float v_kind;
 in vec2 v_fieldUv;
 out vec4 fragColor;
+${SILK_RAMP}
 void main() {
   float mask = texture(u_wind, v_fieldUv).b;
   float nrm = clamp(v_speed / max(u_speed_ref, 0.4), 0.0, 1.0);
@@ -438,8 +451,8 @@ void main() {
     return;
   }
   if (mask < 0.45) discard;
-  // wind: #FFFFFF glow silk. never speed-tinted. weak wind nearly invisible.
-  vec3 rgb = u_color.rgb;
+  // wind: teal→amber silk by speed. never white, never curtain LUT isolines.
+  vec3 rgb = silkRamp(nrm);
   float a = u_color.a * mix(0.1, 1.0, nrm);
   fragColor = vec4(rgb * a, a);
 }

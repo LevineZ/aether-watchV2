@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, test } from 'node:test'
 
-describe('GPGPU white glow-stick advection', () => {
+describe('GPGPU teal-amber silk advection', () => {
   test('FBO fade 0.96, long life, visible step', () => {
     const src = readFileSync(new URL('./particle-layer.ts', import.meta.url), 'utf8')
     assert.match(src, /TRAIL_FADE = 0\.96/)
@@ -24,15 +24,19 @@ describe('GPGPU white glow-stick advection', () => {
     assert.match(shaders, /uniform sampler2D u_prev/)
   })
 
-  test('wind stamps #FFFFFF silk, never speed-tinted; curtain is a watercolor wash', () => {
+  test('wind stamps teal→amber silk, never #FFFFFF and never curtain LUT isolines', () => {
     const src = readFileSync(new URL('./particle-layer.ts', import.meta.url), 'utf8')
-    assert.match(src, /\[1, 1, 1, 0\.55\]/)
+    assert.doesNotMatch(src, /\[1, 1, 1, 0\.55\]/)
     assert.match(src, /size: 1\.3/)
+    assert.match(src, /\[0\.09, 0\.75, 0\.82, 0\.5\]/)
     assert.match(src, /\[0\.498, 0\.831, 0\.91, 0\.55\]/)
-    assert.match(src, /粒子禁止染风速色/)
+    assert.doesNotMatch(src, /粒子禁止染风速色/)
+    assert.match(src, /严禁白丝/)
     const shaders = readFileSync(new URL('./shaders.ts', import.meta.url), 'utf8')
-    assert.match(shaders, /#FFFFFF/)
+    assert.match(shaders, /vec3 silkRamp/)
+    assert.match(shaders, /rgb = silkRamp\(nrm\)/)
     assert.match(shaders, /#7FD4E8/)
+    assert.doesNotMatch(shaders, /#FFFFFF/)
     assert.doesNotMatch(shaders, /texture\(u_lut, vec2\(nrm/)
     assert.match(shaders, /mix\(vec3\(luma\), rgb, 0\.5\)/)
     assert.match(shaders, /alpha = 0\.3/)

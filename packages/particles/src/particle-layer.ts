@@ -183,7 +183,7 @@ function fieldToRgba(frame: FieldFrame): {
  *
  * | kind   | 主视觉原语                                      | 是否粒子                         | 禁止                                      |
  * |--------|-------------------------------------------------|----------------------------------|-------------------------------------------|
- * | wind   | 水彩色幕 + FBO 0.96 白荧光丝（寿命长、强风拉长） | 是                               | 静电雪花；断头短线；风速染粒子               |
+ * | wind   | 水彩色幕 + FBO 0.96 青金风速丝（严禁白丝）         | 是                               | 白丝；#FFFFFF；色幕同 LUT 面条；静电雪花     |
  * | temp   | 256×1 LINEAR LUT 平滑热幕 + 场双线性             | 否（count=0 且 particlePass=off） | 任何粒子；斑块/噪声；硬边色带               |
  * | precip | 低周波 fbm 雨团：噪声调 alpha + LUT 采样位      | 否                               | 均匀色幕；脏噪点雾；风场粒子层              |
  * | ocean  | 霜蓝短丝 + FS mask discard，仅海面                | 是（0.4× 风速，极稀）            | 上陆；复用 wind 参数；白色/暖色粒子         |
@@ -196,7 +196,7 @@ export const ADVECT_STEP = 0.0024
 export const ADVECT_DEG_SCALE = 28
 export const WIND_SPEED_GLOBAL = 0.18
 export const WIND_SPEED_DESK = 0.09
-/** Wind FBO glow-stick fade. Trails live ~1s; length = vel × scale, not a segment cap. */
+/** Wind FBO trail fade. Trails live ~1s; length = vel × scale, not a segment cap. */
 export const TRAIL_FADE = 0.96
 export const TRAIL_FADE_OCEAN = 0.93
 export const TRAIL_DECAY = 0.001
@@ -243,7 +243,7 @@ export const KIND_LOOK: Record<
     speed: WIND_SPEED_GLOBAL,
     drop: 0.0008,
     size: 1.3,
-    color: [1, 1, 1, 0.55],
+    color: [0.09, 0.75, 0.82, 0.5],
     ribbonDeg: 5.8,
     ribbonPx: 0.72,
     uvScale: 1,
@@ -295,7 +295,7 @@ export type ParticleLayerOptions = {
  * MapLibre CustomLayer：GPU 粒子。
  * - 粒子 UV 只活在 FieldFrame.bbox 内；每帧用当前相机 defaultProjectionData 重绑，禁止缓存 world→UV。
  * - 空闲 peak≈40 万；拖动停平流、计数不砍；松手 peak + 重投。
- * - wind：水彩色幕 + FBO 0.96 白荧光丝 #FFFFFF。每帧 0.08% 重生。粒子禁止染风速色。
+ * - wind：水彩色幕 + FBO 0.96 青→金风速丝。严禁白丝。丝色不跟色幕 LUT。每帧 0.08% 重生。
  * - temp：256×1 LINEAR LUT 热幕。particlePass=off，count=0。
  * - precip：低周波 fbm 雨团。particlePass=off，无雨丝。
  * - ocean：霜蓝短丝（#7FD4E8）+ FS 海 mask discard，不上陆。
@@ -979,9 +979,6 @@ export class ParticleLayer {
     g.activeTexture(g.TEXTURE2)
     g.bindTexture(g.TEXTURE_2D, this.windTex)
     g.uniform1i(g.getUniformLocation(this.trailLineProg, 'u_wind'), 2)
-    g.activeTexture(g.TEXTURE3)
-    g.bindTexture(g.TEXTURE_2D, this.lutTex)
-    g.uniform1i(g.getUniformLocation(this.trailLineProg, 'u_lut'), 3)
     g.uniform2f(g.getUniformLocation(this.trailLineProg, 'u_particle_res'), PARTICLE_TEX.width, PARTICLE_TEX.height)
     g.uniform2f(g.getUniformLocation(this.trailLineProg, 'u_wind_min'), this.uMin, this.vMin)
     g.uniform2f(g.getUniformLocation(this.trailLineProg, 'u_wind_max'), this.uMax, this.vMax)
