@@ -28,6 +28,7 @@ describe('kind primitive table', () => {
     const shaders = readFileSync(new URL('./shaders.ts', import.meta.url), 'utf8')
     assert.match(layer, /渲染原语分配表/)
     assert.match(layer, /precip[\s\S]*否/)
+    assert.doesNotMatch(shaders, /float patch/)
     assert.match(shaders, /fbm3/)
     assert.match(shaders, /radar-style blobs/)
     assert.match(shaders, /smooth color curtain only/)

@@ -513,8 +513,8 @@ void main() {
       vec3(0.82, 0.10, 0.14));
     float dryA = 0.035;
     float wet = smoothstep(0.03, 0.16, t);
-    float patch = smoothstep(0.32, 0.72, mottled);
-    float edge = mix(0.12, 1.0, patch);
+    float blob = smoothstep(0.32, 0.72, mottled);
+    float edge = mix(0.12, 1.0, blob);
     alpha = mix(dryA, mix(0.18, 0.70, sampleT) * edge, wet);
     rgb = mix(vec3(0.03, 0.07, 0.14), rgb, wet);
   } else if (u_mode < 2.5) {
