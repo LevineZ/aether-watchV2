@@ -183,9 +183,9 @@ export const ADVECT_STEP = 0.0024
 export const WIND_SPEED_GLOBAL = 0.22
 export const WIND_SPEED_DESK = 0.085
 export const TRAIL_FADE = 0.995
-export const TRAIL_GAIN = 0.88
-/** Screen pixels per frame at |vel| = speedRef. Overlap the 1.6px stamp so silk is continuous. */
-export const TRAIL_TARGET_PX = 1.7
+export const TRAIL_GAIN = 0.9
+/** Screen pixels per frame at |vel| = speedRef. Keep ≤ point size so silk does not dash. */
+export const TRAIL_TARGET_PX = 1.05
 export const OCEAN_TARGET_PX = 1.15
 /** @deprecated 用 WIND_SPEED_DESK / WIND_SPEED_GLOBAL */
 export const WIND_DESK_SPEED_SCALE = WIND_SPEED_DESK / WIND_SPEED_GLOBAL
@@ -217,8 +217,8 @@ export const KIND_LOOK: Record<
     overlay: 'wind',
     speed: WIND_SPEED_GLOBAL,
     drop: 0.00008,
-    size: 1.6,
-    color: [0.93, 0.97, 1.0, 0.42],
+    size: 2.05,
+    color: [0.94, 0.97, 1.0, 0.4],
     ribbonDeg: 5.8,
     ribbonPx: 0.72,
     uvScale: 1,

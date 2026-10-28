@@ -35,5 +35,5 @@ export function visualCount(opts: {
   if (opts.ocean) return Math.floor((opts.regionalWindow ? 6_000 : 12_000) * d)
   if (opts.precip) return Math.floor((opts.regionalWindow ? 8_000 : 12_000) * d)
   const zMul = zoomCountMul(opts.zoom ?? ZOOM_REF)
-  return Math.floor((opts.regionalWindow ? 7_000 : 17_000) * d * zMul)
+  return Math.floor((opts.regionalWindow ? 6_000 : 15_000) * d * zMul)
 }

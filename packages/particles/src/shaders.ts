@@ -63,7 +63,7 @@ void main() {
   } else {
     float mag = length(vel);
     vec2 dir = mag > 1e-5 ? vel / mag : vec2(0.0);
-    float nrm = clamp(mag / max(u_speed_ref, 0.4), 0.0, 2.2);
+    float nrm = clamp(mag / max(u_speed_ref, 0.4), 0.0, 1.55);
     pos += dir * nrm * u_step * u_uv_scale;
     dead = mask < 0.45 || r < drop;
   }
@@ -454,7 +454,7 @@ void main() {
     alpha = mix(0.04, 0.42, wet);
   } else if (u_mode < 2.5) {
     rgb = windRamp(t);
-    alpha = 0.30;
+    alpha = 0.28;
   } else {
     rgb = oceanRamp(t);
     alpha = 0.28 * mask;
