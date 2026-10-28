@@ -176,14 +176,17 @@ function fieldToRgba(frame: FieldFrame): {
 
 /**
  * Ventusky / Windy visual grammar (own FieldFrame, no third-party tiles):
- * translucent color wash + white screen-space fade trails (webgl-wind).
- * LINEAR trail + fade≈0.995 turns 1px stamps into long silk; high drop / idle reseed = 乱窜.
+ * translucent color wash + screen-space fade trails (webgl-wind).
+ * Fade+decay+cap keeps silk density stable; fade-only 0.995 whites out the map.
+ * Wind stamps near-white hair; ocean stamps cyan-green on water only.
  */
 export const ADVECT_STEP = 0.0024
 export const WIND_SPEED_GLOBAL = 0.22
 export const WIND_SPEED_DESK = 0.085
-export const TRAIL_FADE = 0.995
-export const TRAIL_GAIN = 0.9
+export const TRAIL_FADE = 0.987
+export const TRAIL_DECAY = 0.002
+export const TRAIL_CAP = 0.48
+export const TRAIL_GAIN = 0.86
 /** Screen pixels per frame at |vel| = speedRef. Keep ≤ point size so silk does not dash. */
 export const TRAIL_TARGET_PX = 1.05
 export const OCEAN_TARGET_PX = 1.15
@@ -216,9 +219,9 @@ export const KIND_LOOK: Record<
     style: 'wind-fog',
     overlay: 'wind',
     speed: WIND_SPEED_GLOBAL,
-    drop: 0.00008,
-    size: 2.05,
-    color: [0.94, 0.97, 1.0, 0.4],
+    drop: 0.0004,
+    size: 1.72,
+    color: [0.96, 0.98, 1.0, 0.26],
     ribbonDeg: 5.8,
     ribbonPx: 0.72,
     uvScale: 1,
@@ -228,9 +231,9 @@ export const KIND_LOOK: Record<
     style: 'currents',
     overlay: 'ocean',
     speed: 0.11,
-    drop: 0.00016,
-    size: 1.3,
-    color: [0.68, 0.9, 0.98, 0.28],
+    drop: 0.0008,
+    size: 1.55,
+    color: [0.14, 0.78, 0.68, 0.32],
     ribbonDeg: 3.2,
     ribbonPx: 7.2,
     uvScale: 1,
@@ -270,10 +273,10 @@ export type ParticleLayerOptions = {
  * MapLibre CustomLayer：GPU 粒子。
  * - 粒子 UV 只活在 FieldFrame.bbox 内；每帧用当前相机 defaultProjectionData 重绑，禁止缓存 world→UV。
  * - 空闲 peak≈40 万；拖动停平流、计数不砍；松手 peak + 重投。
- * - wind：半透明 |UV| 色幕 + 白色点进屏空间拖影（Ventusky/Windy 语法）。
+ * - wind：半透明 |UV| 色幕 + 近白屏空间拖影（Ventusky 风丝）。
  * - temp：半透明热幕，无粒子。
- * - precip：湿处半透明 + 下落雨丝。
- * - ocean：半透明海幕 + 青色拖影。
+ * - precip：湿处半透明 + 下落雨丝（不走拖影 FBO）。
+ * - ocean：半透明海幕 + 青绿拖影，只画海。
  * - 粒子只活在相机可见 UV 窗。拖动清空拖影，禁止拖花。
  */
 export class ParticleLayer {
@@ -819,6 +822,8 @@ export class ParticleLayer {
     g.uniform1i(g.getUniformLocation(this.fadeProg, 'u_tex'), 0)
     const moving = !!this.map?.isMoving()
     g.uniform1f(g.getUniformLocation(this.fadeProg, 'u_fade'), moving ? 0 : TRAIL_FADE)
+    g.uniform1f(g.getUniformLocation(this.fadeProg, 'u_decay'), moving ? 0 : TRAIL_DECAY)
+    g.uniform1f(g.getUniformLocation(this.fadeProg, 'u_cap'), TRAIL_CAP)
     g.bindBuffer(g.ARRAY_BUFFER, this.quadBuf)
     g.enableVertexAttribArray(0)
     g.vertexAttribPointer(0, 2, g.FLOAT, false, 0, 0)
@@ -842,6 +847,7 @@ export class ParticleLayer {
     g.bindTexture(g.TEXTURE_2D, this.trail0)
     g.uniform1i(g.getUniformLocation(this.blitProg, 'u_tex'), 0)
     g.uniform1f(g.getUniformLocation(this.blitProg, 'u_gain'), TRAIL_GAIN)
+    g.uniform1f(g.getUniformLocation(this.blitProg, 'u_cap'), TRAIL_CAP)
     g.bindBuffer(g.ARRAY_BUFFER, this.quadBuf)
     g.enableVertexAttribArray(0)
     g.vertexAttribPointer(0, 2, g.FLOAT, false, 0, 0)

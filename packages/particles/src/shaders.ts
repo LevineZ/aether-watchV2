@@ -301,6 +301,7 @@ in float v_alive;
 in float v_edge;
 in float v_kind;
 out vec4 fragColor;
+${MIX7}
 void main() {
   if (v_alive < 0.45 && v_kind < 2.5) discard;
   if (v_kind > 2.5 && v_alive < 0.06) discard;
@@ -309,8 +310,18 @@ void main() {
   if (d > 1.0) discard;
   float core = smoothstep(1.0, 0.42, d);
   float edge = smoothstep(0.0, 0.03, v_edge);
+  float nrm = clamp(v_speed / max(u_speed_ref, 0.4), 0.0, 1.0);
+  vec3 rgb = u_color.rgb;
   float a = u_color.a * core * edge;
-  fragColor = vec4(u_color.rgb * a, a);
+  if (v_kind > 0.5 && v_kind < 1.5) {
+    // ocean: cyan-green silk tinted by |UV|, never the wind white hair
+    rgb = mix(u_color.rgb, oceanRamp(nrm), 0.78);
+    a *= mix(0.72, 1.0, nrm);
+  } else {
+    // wind: near-white silk over the speed curtain
+    rgb = mix(u_color.rgb, vec3(1.0), nrm * 0.12);
+  }
+  fragColor = vec4(rgb * a, a);
 }
 `
 
@@ -318,10 +329,19 @@ export const FADE_FS = `#version 300 es
 precision mediump float;
 uniform sampler2D u_tex;
 uniform float u_fade;
+uniform float u_decay;
+uniform float u_cap;
 in vec2 v_uv;
 out vec4 fragColor;
 void main() {
-  fragColor = texture(u_tex, v_uv) * u_fade;
+  vec4 c = texture(u_tex, v_uv) * u_fade;
+  c = max(c - vec4(u_decay), 0.0);
+  float lum = max(max(c.r, c.g), c.b);
+  if (lum > u_cap && lum > 1e-6) {
+    c.rgb *= u_cap / lum;
+    c.a = min(c.a, u_cap);
+  }
+  fragColor = c;
 }
 `
 
@@ -329,10 +349,15 @@ export const BLIT_FS = `#version 300 es
 precision mediump float;
 uniform sampler2D u_tex;
 uniform float u_gain;
+uniform float u_cap;
 in vec2 v_uv;
 out vec4 fragColor;
 void main() {
   vec4 c = texture(u_tex, v_uv);
+  float lum = max(max(c.r, c.g), max(c.b, c.a));
+  if (lum > u_cap && lum > 1e-6) {
+    c *= u_cap / lum;
+  }
   fragColor = c * u_gain;
 }
 `

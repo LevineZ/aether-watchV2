@@ -2,16 +2,30 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, test } from 'node:test'
 
-describe('Ventusky-like wind silk', () => {
-  test('slow fade + thin low-alpha stamps, not teleporting ribbons', () => {
+describe('kind-look silk trails', () => {
+  test('fade + decay + cap, not immortal white-out', () => {
     const src = readFileSync(new URL('./particle-layer.ts', import.meta.url), 'utf8')
-    assert.match(src, /TRAIL_FADE = 0\.995/)
-    assert.match(src, /TRAIL_GAIN = 0\.9/)
-    assert.match(src, /drop: 0\.00008/)
-    assert.match(src, /size: 2\.05/)
+    assert.match(src, /TRAIL_FADE = 0\.987/)
+    assert.match(src, /TRAIL_DECAY = 0\.002/)
+    assert.match(src, /TRAIL_CAP = 0\.48/)
+    assert.match(src, /TRAIL_GAIN = 0\.86/)
     assert.match(src, /trailStepUv/)
     const shaders = readFileSync(new URL('./shaders.ts', import.meta.url), 'utf8')
     assert.match(shaders, /c\.r \/ 255\.0 \+ c\.b/)
+    assert.match(shaders, /u_decay/)
+    assert.match(shaders, /u_cap/)
+    assert.match(shaders, /c = max\(c - vec4\(u_decay\), 0\.0\)/)
     assert.match(src, /Do not reseed on idle/)
+  })
+
+  test('wind stamps near-white; ocean stamps cyan-green', () => {
+    const src = readFileSync(new URL('./particle-layer.ts', import.meta.url), 'utf8')
+    assert.match(src, /drop: 0\.0004/)
+    assert.match(src, /size: 1\.72/)
+    assert.match(src, /\[0\.96, 0\.98, 1\.0, 0\.26\]/)
+    assert.match(src, /\[0\.14, 0\.78, 0\.68, 0\.32\]/)
+    const shaders = readFileSync(new URL('./shaders.ts', import.meta.url), 'utf8')
+    assert.match(shaders, /oceanRamp\(nrm\)/)
+    assert.match(shaders, /never the wind white hair/)
   })
 })

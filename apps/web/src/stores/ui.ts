@@ -25,6 +25,7 @@ export const useUiStore = defineStore('ui', {
     switching: false,
     labelsOn: true,
     uploadOpen: false,
+    layersOpen: true,
   }),
   actions: {
     setKind(kind: FieldKind) {

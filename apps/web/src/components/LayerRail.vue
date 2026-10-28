@@ -17,10 +17,16 @@ const layers: { id: FieldKind; key: 'chipWind' | 'chipOcean' | 'chipTemp' | 'chi
 ]
 
 const heightLabel = computed(() => (ui.page === 'global' ? '2.0 m' : '10.0 m'))
+const current = computed(() => layers.find((c) => c.id === ui.kind) ?? layers[0])
+const visibleLayers = computed(() => (ui.layersOpen ? layers : [current.value]))
 
 function pick(kind: FieldKind) {
   if (field.isKindMissing(ui.page, kind)) return
   void field.selectKind(kind)
+}
+
+function toggleLayers() {
+  ui.layersOpen = !ui.layersOpen
 }
 
 function download() {
@@ -39,23 +45,12 @@ function download() {
 
 <template>
   <aside class="dock">
-    <div class="layers">
-      <button
-        v-for="c in layers"
-        :key="c.id"
-        class="row"
-        :class="{ on: ui.kind === c.id, missing: field.isKindMissing(ui.page, c.id) }"
-        type="button"
-        @click="pick(c.id)"
-      >
-        <span class="dot" :style="{ background: c.dot }" />
-        {{ t[c.key] }}
-      </button>
-    </div>
     <div class="tools">
       <button class="chip on" type="button" :title="t.altitude">
         {{ heightLabel }}
-        <span class="chev" aria-hidden="true">▾</span>
+        <svg class="mini" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 6l4 4 4-4" />
+        </svg>
       </button>
       <div class="pair">
         <button class="chip" type="button">
@@ -73,18 +68,49 @@ function download() {
         {{ t.export }}
       </button>
     </div>
+    <div class="layers" :class="{ closed: !ui.layersOpen }" role="tablist" :aria-label="t.elements">
+      <button
+        v-for="c in visibleLayers"
+        :key="c.id"
+        class="row"
+        :class="{ on: ui.kind === c.id, missing: field.isKindMissing(ui.page, c.id) }"
+        type="button"
+        role="tab"
+        :aria-selected="ui.kind === c.id"
+        :aria-disabled="field.isKindMissing(ui.page, c.id)"
+        :title="field.isKindMissing(ui.page, c.id) ? t.chipMissing : t[c.key]"
+        @click="pick(c.id)"
+      >
+        <span class="dot" :style="{ background: c.dot }" />
+        {{ t[c.key] }}
+      </button>
+      <button
+        class="fold"
+        type="button"
+        :aria-expanded="ui.layersOpen"
+        :title="ui.layersOpen ? t.layersCollapse : t.layersExpand"
+        @click="toggleLayers"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path v-if="ui.layersOpen" d="M4 10l4-4 4 4" />
+          <path v-else d="M4 6l4 4 4-4" />
+        </svg>
+      </button>
+    </div>
   </aside>
 </template>
 
 <style scoped>
 .dock {
   position: absolute;
-  top: 72px;
   left: 16px;
+  bottom: 80px;
   z-index: 5;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  align-items: flex-start;
+  gap: 14px;
+  pointer-events: none;
 }
 .layers,
 .tools {
@@ -92,22 +118,43 @@ function download() {
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
+  pointer-events: auto;
 }
-.row {
+.layers.closed {
+  flex-direction: row;
+  align-items: center;
+}
+.row,
+.chip,
+.fold {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   height: 32px;
   padding: 0 12px 0 8px;
   border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.94);
   color: #111;
   font-size: 13px;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.35);
+  box-shadow: var(--shadow-pill);
 }
-.row.on {
+.chip {
+  font-size: 12px;
+  padding: 0 12px;
+}
+.row:hover,
+.chip:hover,
+.fold:hover {
+  background: #f3f4f6;
+}
+.row.on,
+.chip.on {
   background: #111;
   color: #fff;
-  text-shadow: none;
+}
+.row.on:hover,
+.chip.on:hover {
+  background: #111;
 }
 .row.missing {
   opacity: 0.35;
@@ -117,38 +164,28 @@ function download() {
   width: 8px;
   height: 8px;
   border-radius: 99px;
+  flex: 0 0 auto;
 }
-.chip {
+.fold {
+  width: 32px;
   height: 32px;
-  padding: 0 12px;
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.92);
-  color: #111;
-  font-size: 12px;
-  box-shadow: var(--shadow-pill);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  padding: 0;
+  justify-content: center;
 }
-.chip.on {
-  background: #111;
-  color: #fff;
-}
-.chip svg {
+.fold svg,
+.chip svg,
+.mini {
   width: 12px;
   height: 12px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.4;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .chip svg rect {
   fill: currentColor;
   stroke: none;
-}
-.chev {
-  font-size: 10px;
-  opacity: 0.7;
 }
 .pair {
   display: flex;

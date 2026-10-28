@@ -2,6 +2,8 @@ export {
   ADVECT_STEP,
   KIND_LOOK,
   ParticleLayer,
+  TRAIL_CAP,
+  TRAIL_DECAY,
   TRAIL_FADE,
   TRAIL_GAIN,
   WIND_DESK_SPEED_SCALE,
