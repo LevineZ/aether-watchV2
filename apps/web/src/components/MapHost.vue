@@ -11,6 +11,7 @@ import { useFieldStore } from '@/stores/field'
 import { useT } from '@/i18n'
 import DemoBadge from './DemoBadge.vue'
 import ProbeChip from './ProbeChip.vue'
+import FieldParticles from './FieldParticles.vue'
 
 function typhoonOn() {
   return ui.page === 'global' || ui.page === 'desk'
@@ -92,6 +93,7 @@ onBeforeUnmount(() => {
     <div class="map-host" ref="root" />
     <DemoBadge />
     <ProbeChip />
+    <FieldParticles />
     <div v-if="field.status === 'loading'" class="toast glass">{{ t.loading }}</div>
     <div v-else-if="field.status === 'error'" class="toast glass err">
       {{ t.error }}：{{ field.error }}

@@ -175,21 +175,34 @@ function fieldToRgba(frame: FieldFrame): {
 }
 
 /**
- * Ventusky / Windy visual grammar (own FieldFrame, no third-party tiles):
- * translucent color wash + screen-space fade trails (webgl-wind).
- * Fade+decay+cap keeps silk density stable; fade-only 0.995 whites out the map.
- * Wind stamps near-white hair; ocean stamps cyan-green on water only.
+ * 渲染原语分配表（违反任一条即打回）
+ *
+ * | kind   | 主视觉原语                                      | 是否粒子                         | 禁止                                      |
+ * |--------|-------------------------------------------------|----------------------------------|-------------------------------------------|
+ * | wind   | |UV| 色幕 + GPGPU 细白粒子流线                   | 是（唯一白流线层）               | 无粒子；只画色幕；粒子长成面片/噪点/粗线   |
+ * | temp   | 仅连续色幕，平滑色带                             | 否（count=0 且 particlePass=off） | 任何粒子；斑块/噪声；硬边色带               |
+ * | precip | 雨团斑块：fbm 调制 alpha 色幕                    | 否                               | 细白点；均匀色幕；风场粒子层；整片透明/实心 |
+ * | ocean  | 霜蓝色幕 + 稀疏细长慢速冷色流线，仅海面          | 是（参数必须明显异于 wind）      | 上陆；复用 wind 参数；白色/暖色粒子         |
+ *
+ * 粒子 GPGPU 仅 wind/ocean 运行。temp/precip 不更新粒子纹理、不 stamp、不 blit。
  */
 export const ADVECT_STEP = 0.0024
-export const WIND_SPEED_GLOBAL = 0.22
-export const WIND_SPEED_DESK = 0.085
-export const TRAIL_FADE = 0.991
-export const TRAIL_DECAY = 0.001
-export const TRAIL_CAP = 0.42
-export const TRAIL_GAIN = 0.88
+export const WIND_SPEED_GLOBAL = 0.18
+export const WIND_SPEED_DESK = 0.09
+export const TRAIL_FADE = 0.988
+export const TRAIL_FADE_OCEAN = 0.994
+export const TRAIL_DECAY = 0.0012
+export const TRAIL_DECAY_OCEAN = 0.00035
+export const TRAIL_CAP = 0.4
+export const TRAIL_GAIN = 0.86
+export const KIND_SWITCH_MS = 200
 /** Screen pixels per frame at |vel| = speedRef. Keep ≤ point size so silk does not dash. */
 export const TRAIL_TARGET_PX = 0.92
-export const OCEAN_TARGET_PX = 1.15
+export const OCEAN_TARGET_PX = 1.84
+
+export function usesParticlePass(kind: FieldKind): boolean {
+  return kind === 'wind' || kind === 'ocean'
+}
 /** @deprecated 用 WIND_SPEED_DESK / WIND_SPEED_GLOBAL */
 export const WIND_DESK_SPEED_SCALE = WIND_SPEED_DESK / WIND_SPEED_GLOBAL
 
@@ -219,9 +232,9 @@ export const KIND_LOOK: Record<
     style: 'wind-fog',
     overlay: 'wind',
     speed: WIND_SPEED_GLOBAL,
-    drop: 0.00015,
-    size: 1.9,
-    color: [0.96, 0.98, 1.0, 0.28],
+    drop: 0.0002,
+    size: 1.55,
+    color: [0.92, 0.97, 1.0, 0.24],
     ribbonDeg: 5.8,
     ribbonPx: 0.72,
     uvScale: 1,
@@ -230,10 +243,10 @@ export const KIND_LOOK: Record<
   ocean: {
     style: 'currents',
     overlay: 'ocean',
-    speed: 0.11,
-    drop: 0.0008,
-    size: 1.55,
-    color: [0.14, 0.78, 0.68, 0.32],
+    speed: WIND_SPEED_GLOBAL * 0.4,
+    drop: 0.00012,
+    size: 0.78,
+    color: [0.498, 0.831, 0.91, 0.22],
     ribbonDeg: 3.2,
     ribbonPx: 7.2,
     uvScale: 1,
@@ -243,23 +256,23 @@ export const KIND_LOOK: Record<
     style: 'wind-fog',
     overlay: 'temp',
     speed: 0,
-    drop: 0.0016,
-    size: 1.35,
-    color: [0.9, 0.82, 0.7, 0.1],
-    ribbonDeg: 1.35,
-    ribbonPx: 1.05,
+    drop: 0,
+    size: 0,
+    color: [0, 0, 0, 0],
+    ribbonDeg: 0,
+    ribbonPx: 0,
     uvScale: 0,
     pool: 'currents',
   },
   precip: {
     style: 'currents',
     overlay: 'precip',
-    speed: 0.22,
-    drop: 0.014,
-    size: 1.25,
-    color: [0.72, 0.90, 1.0, 0.7],
-    ribbonDeg: 1.15,
-    ribbonPx: 1.35,
+    speed: 0,
+    drop: 0,
+    size: 0,
+    color: [0, 0, 0, 0],
+    ribbonDeg: 0,
+    ribbonPx: 0,
     uvScale: 0,
     pool: 'wind',
   },
@@ -273,10 +286,10 @@ export type ParticleLayerOptions = {
  * MapLibre CustomLayer：GPU 粒子。
  * - 粒子 UV 只活在 FieldFrame.bbox 内；每帧用当前相机 defaultProjectionData 重绑，禁止缓存 world→UV。
  * - 空闲 peak≈40 万；拖动停平流、计数不砍；松手 peak + 重投。
- * - wind：半透明 |UV| 色幕 + 近白屏空间拖影（Ventusky 风丝）。
- * - temp：半透明热幕，无粒子。
- * - precip：湿处半透明 + 下落雨丝（不走拖影 FBO）。
- * - ocean：半透明海幕 + 青绿拖影，只画海。
+ * - wind：|UV| 色幕 + 细白 GPGPU 流线（唯一白发丝）。
+ * - temp：平滑热幕。particlePass=off，count=0。
+ * - precip：fbm 雨团色幕。particlePass=off，无雨丝。
+ * - ocean：霜蓝色幕 + 更细更长更慢更稀的冷色流线，只画海。
  * - 粒子只活在相机可见 UV 窗。拖动清空拖影，禁止拖花。
  */
 export class ParticleLayer {
@@ -330,6 +343,7 @@ export class ParticleLayer {
   private hasFrame = false
   private pendingReseed = false
   private didPrerender = false
+  private kindSwitchAt = 0
   private shaderVariant = ''
   private proj: ProjectionPack | null = null
   private moveHandler?: () => void
@@ -418,7 +432,7 @@ export class ParticleLayer {
   }
 
   setLod(level: LodLevel) {
-    if (this.kind === 'temp') {
+    if (!usesParticlePass(this.kind)) {
       this.advecting = false
       this.lod = 'paused'
       this.map?.triggerRepaint()
@@ -448,7 +462,7 @@ export class ParticleLayer {
   }
 
   resume() {
-    if (this.kind === 'temp') {
+    if (!usesParticlePass(this.kind)) {
       this.advecting = false
       this.lod = 'paused'
       this.map?.triggerRepaint()
@@ -478,17 +492,20 @@ export class ParticleLayer {
     this.ribbonPx = look.ribbonPx
     this.uvScale = look.uvScale
     this.pool = look.pool
+    this.kindSwitchAt = performance.now()
     this.clearTrail()
     const lonSpan = Math.abs(this.bbox[2] - this.bbox[0])
     this.wrap = lonSpan > 350 ? 1 : 0
     this.syncViewWindow()
     this.syncRibbonFromView()
-    if (kind === 'temp') {
+    if (!usesParticlePass(kind)) {
       this.advecting = false
       this.lod = 'paused'
-    } else if (this.lod === 'paused') {
+      this.pendingReseed = false
+    } else {
       this.advecting = true
       this.lod = 'peak'
+      this.pendingReseed = true
     }
     this.map?.triggerRepaint()
   }
@@ -520,14 +537,18 @@ export class ParticleLayer {
   }
 
   showParticles(): boolean {
-    return this.kind !== 'temp'
+    return usesParticlePass(this.kind)
+  }
+
+  particlePassLive(): boolean {
+    return this.showParticles()
   }
 
   drawCount(): number {
-    if (this.kind === 'temp') return 0
+    if (!usesParticlePass(this.kind)) return 0
     return visualCount({
       ocean: this.kind === 'ocean',
-      precip: this.kind === 'precip',
+      precip: false,
       regionalWindow: this.wrap < 0.5,
       density: this.density,
       zoom: this.map?.getZoom() ?? 1.35,
@@ -553,7 +574,7 @@ export class ParticleLayer {
     g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR)
     g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR)
     g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, frame.nx, frame.ny, 0, g.RGBA, g.UNSIGNED_BYTE, packed.data)
-    this.reseed(g)
+    if (this.showParticles()) this.reseed(g)
     this.clearTrail()
     this.hasFrame = true
     this.map?.triggerRepaint()
@@ -566,7 +587,7 @@ export class ParticleLayer {
     this.captureProj(args)
     this.syncViewWindow()
     this.syncRibbonFromView()
-    if (this.pendingReseed) {
+    if (this.pendingReseed && this.showParticles()) {
       this.reseed(g)
       this.pendingReseed = false
     }
@@ -586,12 +607,12 @@ export class ParticleLayer {
     const matrix = this.proj?.mainMatrix
     if (!matrix) return
 
-    if (this.pendingReseed) {
+    if (this.pendingReseed && this.showParticles()) {
       this.reseed(g)
       this.pendingReseed = false
     }
     const moving = !!this.map?.isMoving()
-    if (this.kind !== 'temp' && !moving) this.advecting = true
+    if (this.showParticles() && !moving) this.advecting = true
     if (!this.didPrerender && this.showParticles() && this.advecting && !moving) {
       this.updateParticles(g)
     }
@@ -608,7 +629,7 @@ export class ParticleLayer {
 
     if (this.vao) g.bindVertexArray(this.vao)
 
-    // Stack: basemap → translucent curtain → screen-space trails / rain → labels.
+    // Stack: basemap → kind-branched curtain → wind/ocean trails only → labels.
     if (this.overlay !== 'none' && this.scalarProg) {
       g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
       g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
@@ -617,16 +638,11 @@ export class ParticleLayer {
 
     const particlesOn = this.showParticles()
     const count = particlesOn ? this.drawCount() : 0
-    const trailKind = this.kind === 'wind' || this.kind === 'ocean'
-    if (particlesOn && count > 0 && trailKind) {
+    if (particlesOn && count > 0) {
       this.stampTrail(g, matrix, count, prevFb, prevVp)
       g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
       g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
       this.blitTrail(g)
-    } else if (particlesOn && count > 0 && this.kind === 'precip') {
-      g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
-      g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
-      this.drawRibbons(g, matrix, count)
     }
 
     if (prevVao) g.bindVertexArray(prevVao)
@@ -642,9 +658,14 @@ export class ParticleLayer {
     if (depth) g.enable(g.DEPTH_TEST)
     else g.disable(g.DEPTH_TEST)
 
-    if (this.map && !this.map.isMoving()) {
+    if (this.map && (!this.map.isMoving() || this.fadeIn() < 1)) {
       this.map.triggerRepaint()
     }
+  }
+
+  private fadeIn(): number {
+    if (!this.kindSwitchAt) return 1
+    return Math.min(1, (performance.now() - this.kindSwitchAt) / KIND_SWITCH_MS)
   }
 
   private applyKind(frame: FieldFrame) {
@@ -821,8 +842,9 @@ export class ParticleLayer {
     g.bindTexture(g.TEXTURE_2D, this.trail0)
     g.uniform1i(g.getUniformLocation(this.fadeProg, 'u_tex'), 0)
     const moving = !!this.map?.isMoving()
-    g.uniform1f(g.getUniformLocation(this.fadeProg, 'u_fade'), moving ? 0 : TRAIL_FADE)
-    g.uniform1f(g.getUniformLocation(this.fadeProg, 'u_decay'), moving ? 0 : TRAIL_DECAY)
+    const ocean = this.kind === 'ocean'
+    g.uniform1f(g.getUniformLocation(this.fadeProg, 'u_fade'), moving ? 0 : ocean ? TRAIL_FADE_OCEAN : TRAIL_FADE)
+    g.uniform1f(g.getUniformLocation(this.fadeProg, 'u_decay'), moving ? 0 : ocean ? TRAIL_DECAY_OCEAN : TRAIL_DECAY)
     g.uniform1f(g.getUniformLocation(this.fadeProg, 'u_cap'), TRAIL_CAP)
     g.bindBuffer(g.ARRAY_BUFFER, this.quadBuf)
     g.enableVertexAttribArray(0)
@@ -846,7 +868,7 @@ export class ParticleLayer {
     g.activeTexture(g.TEXTURE0)
     g.bindTexture(g.TEXTURE_2D, this.trail0)
     g.uniform1i(g.getUniformLocation(this.blitProg, 'u_tex'), 0)
-    g.uniform1f(g.getUniformLocation(this.blitProg, 'u_gain'), TRAIL_GAIN)
+    g.uniform1f(g.getUniformLocation(this.blitProg, 'u_gain'), TRAIL_GAIN * this.fadeIn())
     g.uniform1f(g.getUniformLocation(this.blitProg, 'u_cap'), TRAIL_CAP)
     g.bindBuffer(g.ARRAY_BUFFER, this.quadBuf)
     g.enableVertexAttribArray(0)
@@ -986,6 +1008,7 @@ export class ParticleLayer {
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_hatch'), 0)
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_wrap'), this.wrap)
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_time'), performance.now() * 0.001)
+    g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_fade_in'), this.fadeIn())
     const shifts = this.wrap ? [-360, 0, 360] : [0]
     for (const shift of shifts) {
       g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_lon_shift'), shift)

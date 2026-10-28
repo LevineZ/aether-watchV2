@@ -128,14 +128,39 @@ vec3 windRamp(float t) {
     vec3(0.760, 0.140, 0.280));
 }
 vec3 oceanRamp(float t) {
+  // frost-blue curtain; never the wind speed rainbow
   return mix7(t,
-    vec3(0.031, 0.122, 0.231),
-    vec3(0.039, 0.275, 0.412),
-    vec3(0.063, 0.525, 0.569),
-    vec3(0.196, 0.761, 0.620),
-    vec3(0.784, 0.863, 0.373),
-    vec3(0.941, 0.714, 0.220),
-    vec3(0.898, 0.373, 0.157));
+    vec3(0.020, 0.078, 0.176),
+    vec3(0.039, 0.176, 0.314),
+    vec3(0.078, 0.373, 0.510),
+    vec3(0.220, 0.620, 0.720),
+    vec3(0.498, 0.831, 0.910),
+    vec3(0.620, 0.878, 0.922),
+    vec3(0.780, 0.941, 0.949));
+}
+`
+
+const FBM = `
+float hash21(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash21(i);
+  float b = hash21(i + vec2(1.0, 0.0));
+  float c = hash21(i + vec2(0.0, 1.0));
+  float d = hash21(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+float fbm3(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  v += a * vnoise(p); p *= 2.03; a *= 0.5;
+  v += a * vnoise(p); p *= 2.11; a *= 0.5;
+  v += a * vnoise(p);
+  return v;
 }
 `
 
@@ -314,12 +339,12 @@ void main() {
   vec3 rgb = u_color.rgb;
   float a = u_color.a * core * edge;
   if (v_kind > 0.5 && v_kind < 1.5) {
-    // ocean: cyan-green silk tinted by |UV|, never the wind white hair
-    rgb = mix(u_color.rgb, oceanRamp(nrm), 0.78);
-    a *= mix(0.72, 1.0, nrm);
+    // ocean: cold #7FD4E8 only — never white, never warm, never windRamp
+    rgb = u_color.rgb;
+    a *= mix(0.5, 0.95, nrm);
   } else {
-    // wind: near-white silk over the speed curtain
-    rgb = mix(u_color.rgb, vec3(1.0), nrm * 0.12);
+    // wind: the only white streamline
+    rgb = mix(u_color.rgb, vec3(0.92, 0.97, 1.0), nrm * 0.18);
   }
   fragColor = vec4(rgb * a, a);
 }
@@ -449,9 +474,11 @@ uniform float u_mode;
 uniform float u_hatch;
 uniform float u_wrap;
 uniform float u_time;
+uniform float u_fade_in;
 in vec2 v_uv;
 out vec4 fragColor;
 ${MIX7}
+${FBM}
 
 void main() {
   vec4 w = texture(u_wind, v_uv);
@@ -460,6 +487,7 @@ void main() {
   vec3 rgb;
   float alpha;
   if (u_mode < 0.5) {
+    // temp: smooth color curtain only. no particles, no mottling, no hard bands.
     rgb = mix7(t,
       vec3(0.298, 0.114, 0.584),
       vec3(0.118, 0.251, 0.686),
@@ -468,22 +496,37 @@ void main() {
       vec3(0.980, 0.800, 0.082),
       vec3(0.976, 0.451, 0.086),
       vec3(0.863, 0.149, 0.149));
-    alpha = 0.38;
+    alpha = 0.58;
   } else if (u_mode < 1.5) {
-    float wet = smoothstep(0.02, 0.72, t);
-    vec3 dry = vec3(0.04, 0.09, 0.10);
-    vec3 mid = vec3(0.07, 0.42, 0.38);
-    vec3 glow = vec3(0.78, 0.96, 0.62);
-    vec3 hot = vec3(0.98, 0.78, 0.28);
-    rgb = mix(mix(dry, mid, clamp(wet * 1.4, 0.0, 1.0)), mix(glow, hot, smoothstep(0.55, 1.0, t)), wet);
-    alpha = mix(0.04, 0.42, wet);
+    // precip: radar-style blobs. fbm modulates alpha + LUT sample. no particles.
+    float n = fbm3(v_uv * vec2(22.0, 34.0) + vec2(u_time * 0.012, -u_time * 0.008));
+    float n2 = fbm3(v_uv * vec2(51.0, 41.0) - vec2(u_time * 0.007, u_time * 0.011));
+    float mottled = mix(n, n2, 0.42);
+    float sampleT = clamp(t * mix(0.82, 1.18, mottled), 0.0, 1.0);
+    rgb = mix7(sampleT,
+      vec3(0.03, 0.10, 0.28),
+      vec3(0.04, 0.38, 0.52),
+      vec3(0.10, 0.62, 0.38),
+      vec3(0.55, 0.82, 0.12),
+      vec3(0.96, 0.78, 0.08),
+      vec3(0.94, 0.38, 0.08),
+      vec3(0.82, 0.10, 0.14));
+    float dryA = 0.035;
+    float wet = smoothstep(0.03, 0.16, t);
+    float patch = smoothstep(0.32, 0.72, mottled);
+    float edge = mix(0.12, 1.0, patch);
+    alpha = mix(dryA, mix(0.18, 0.70, sampleT) * edge, wet);
+    rgb = mix(vec3(0.03, 0.07, 0.14), rgb, wet);
   } else if (u_mode < 2.5) {
+    // wind: |UV| speed curtain; particles are a separate pass
     rgb = windRamp(t);
     alpha = 0.28;
   } else {
+    // ocean: frost-blue * hard sea mask. land alpha = 0.
     rgb = oceanRamp(t);
-    alpha = 0.28 * mask;
+    alpha = 0.34 * mask;
   }
+  alpha *= u_fade_in;
   fragColor = vec4(rgb * alpha, alpha);
 }
 `

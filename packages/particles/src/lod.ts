@@ -17,13 +17,18 @@ export function lodCount(level: LodLevel): number {
 
 const ZOOM_REF = 1.35
 
-/** n∝1/zoom^0.85：远景更密、近景仍够丝。气温走 count=0；降雨另计。 */
+/** n∝1/zoom²：仅 wind。temp/precip count=0；ocean 约为 wind 的 30%。 */
 export function zoomCountMul(zoom: number): number {
   const z = Math.max(0.85, zoom)
-  return Math.max(0.28, Math.min(1.25, (ZOOM_REF / z) ** 0.85))
+  return Math.max(0.08, Math.min(1.35, (ZOOM_REF / z) ** 2))
 }
 
-/** Ventusky/Windy：屏空间拖影，粒子宜稀。过密会糊成噪点、盖住地图。 */
+function windCount(opts: { regionalWindow: boolean; density: number; zoom?: number }): number {
+  const d = Math.max(0.2, Math.min(1, opts.density))
+  return Math.floor((opts.regionalWindow ? 6_000 : 15_000) * d * zoomCountMul(opts.zoom ?? ZOOM_REF))
+}
+
+/** 粒子只给 wind / ocean。precip 必须是 0。ocean ≈ 30% wind。 */
 export function visualCount(opts: {
   ocean: boolean
   precip?: boolean
@@ -31,9 +36,8 @@ export function visualCount(opts: {
   density: number
   zoom?: number
 }): number {
-  const d = Math.max(0.2, Math.min(1, opts.density))
-  if (opts.ocean) return Math.floor((opts.regionalWindow ? 6_000 : 12_000) * d)
-  if (opts.precip) return Math.floor((opts.regionalWindow ? 8_000 : 12_000) * d)
-  const zMul = zoomCountMul(opts.zoom ?? ZOOM_REF)
-  return Math.floor((opts.regionalWindow ? 6_000 : 15_000) * d * zMul)
+  if (opts.precip) return 0
+  const wind = windCount(opts)
+  if (opts.ocean) return Math.max(320, Math.floor(wind * 0.3))
+  return wind
 }
