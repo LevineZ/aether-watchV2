@@ -39,12 +39,6 @@ export const mapStyle = {
   name: 'aether-ventusky',
   glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
   sources: {
-    carto: {
-      type: 'raster',
-      tiles: ['https://basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png'],
-      tileSize: 256,
-      attribution: '© OpenStreetMap © CARTO',
-    },
     openmaptiles: {
       type: 'vector',
       url: 'https://tiles.openfreemap.org/planet',
@@ -66,23 +60,17 @@ export const mapStyle = {
       paint: { 'background-color': '#0d0d0d' },
     },
     {
-      id: 'carto',
-      type: 'raster',
-      source: 'carto',
-      paint: { 'raster-opacity': 1, 'raster-saturation': -0.12, 'raster-contrast': 0.08 },
-    },
-    {
       id: 'land',
       type: 'fill',
       source: 'land',
-      paint: { 'fill-color': '#1a1a1a', 'fill-opacity': 0 },
+      paint: { 'fill-color': '#1a1a1a', 'fill-opacity': 1 },
     },
     {
       id: 'water',
       type: 'fill',
       source: 'openmaptiles',
       'source-layer': 'water',
-      paint: { 'fill-color': '#0d0d0d', 'fill-opacity': 0 },
+      paint: { 'fill-color': '#0d0d0d', 'fill-opacity': 1 },
     },
     {
       id: 'coast-line',
@@ -90,8 +78,8 @@ export const mapStyle = {
       source: 'land',
       paint: {
         'line-color': '#9aa0a6',
-        'line-width': 0.8,
-        'line-opacity': 0,
+        'line-width': 0.85,
+        'line-opacity': 0.85,
       },
     },
     {
@@ -101,9 +89,9 @@ export const mapStyle = {
       'source-layer': 'boundary',
       filter: ['all', ['==', ['to-number', ['get', 'admin_level']], 2], ['!=', ['get', 'maritime'], 1]],
       paint: {
-        'line-color': '#888888',
-        'line-width': 0.6,
-        'line-opacity': 0,
+        'line-color': '#6b7280',
+        'line-width': 0.45,
+        'line-opacity': 0.22,
       },
     },
     {

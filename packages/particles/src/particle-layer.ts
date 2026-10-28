@@ -190,7 +190,7 @@ export const ADVECT_STEP = 0.0024
 export const WIND_SPEED_GLOBAL = 0.18
 export const WIND_SPEED_DESK = 0.09
 export const TRAIL_FADE = 0.995
-export const TRAIL_GAIN = 0.9
+export const TRAIL_GAIN = 0.62
 /** Screen pixels per frame at |vel| = speedRef (global 0.18). Desk scales with 0.09/0.18. */
 export const TRAIL_TARGET_PX = 1.15
 export const OCEAN_TARGET_PX = 1.05
@@ -224,8 +224,8 @@ export const KIND_LOOK: Record<
     overlay: 'wind',
     speed: WIND_SPEED_GLOBAL,
     drop: 0.018,
-    size: 1.85,
-    color: [0.91, 0.957, 0.969, 0.72],
+    size: 1.45,
+    color: [0.91, 0.957, 0.969, 0.38],
     ribbonDeg: 5.8,
     ribbonPx: 0.72,
     uvScale: 1,
@@ -328,7 +328,7 @@ export class ParticleLayer {
   private size = KIND_LOOK.wind.size
   private color: [number, number, number, number] = KIND_LOOK.wind.color
   private drop = KIND_LOOK.wind.drop
-  private density = 1
+  private density = 0.42
   private ribbonDeg = KIND_LOOK.wind.ribbonDeg
   private ribbonPx = KIND_LOOK.wind.ribbonPx
   private advecting = true

@@ -16,7 +16,7 @@ export const useUiStore = defineStore('ui', {
     locale: 'zh' as Locale,
     playing: false,
     hour: 0,
-    density: 1,
+    density: 0.42,
     pointSize: 1,
     strength: 1,
     kind: 'wind' as FieldKind,
