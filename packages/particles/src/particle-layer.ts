@@ -183,12 +183,12 @@ function fieldToRgba(frame: FieldFrame): {
 export const ADVECT_STEP = 0.0024
 export const WIND_SPEED_GLOBAL = 0.22
 export const WIND_SPEED_DESK = 0.085
-export const TRAIL_FADE = 0.987
-export const TRAIL_DECAY = 0.002
-export const TRAIL_CAP = 0.48
-export const TRAIL_GAIN = 0.86
+export const TRAIL_FADE = 0.991
+export const TRAIL_DECAY = 0.001
+export const TRAIL_CAP = 0.42
+export const TRAIL_GAIN = 0.88
 /** Screen pixels per frame at |vel| = speedRef. Keep ≤ point size so silk does not dash. */
-export const TRAIL_TARGET_PX = 1.05
+export const TRAIL_TARGET_PX = 0.92
 export const OCEAN_TARGET_PX = 1.15
 /** @deprecated 用 WIND_SPEED_DESK / WIND_SPEED_GLOBAL */
 export const WIND_DESK_SPEED_SCALE = WIND_SPEED_DESK / WIND_SPEED_GLOBAL
@@ -219,9 +219,9 @@ export const KIND_LOOK: Record<
     style: 'wind-fog',
     overlay: 'wind',
     speed: WIND_SPEED_GLOBAL,
-    drop: 0.0004,
-    size: 1.72,
-    color: [0.96, 0.98, 1.0, 0.26],
+    drop: 0.00015,
+    size: 1.9,
+    color: [0.96, 0.98, 1.0, 0.28],
     ribbonDeg: 5.8,
     ribbonPx: 0.72,
     uvScale: 1,

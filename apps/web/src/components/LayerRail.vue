@@ -135,7 +135,7 @@ function download() {
   border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.94);
   color: #111;
-  font-size: 13px;
+  font-size: 14px;
   box-shadow: var(--shadow-pill);
 }
 .chip {
@@ -145,7 +145,7 @@ function download() {
 .row:hover,
 .chip:hover,
 .fold:hover {
-  background: #f3f4f6;
+  background: var(--chrome-soft);
 }
 .row.on,
 .chip.on {

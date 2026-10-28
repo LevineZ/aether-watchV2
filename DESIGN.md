@@ -105,7 +105,7 @@ components:
 ## 5. 粒子 / GPU
 
 - 观感峰值 30万–60万；拖动 / 缩放 / 切 Tab 降档或 pause
-- 风/洋流：屏空间拖影（LINEAR + fade≈0.987 + decay + luminance cap），禁止无限堆积盖住地图；拖动清空；粒子宜稀。降雨为下落雨丝，不走拖影。
+- 风/洋流：屏空间拖影（LINEAR + fade≈0.991 + decay + luminance cap），禁止无限堆积盖住地图；拖动清空；粒子宜稀。降雨为下落雨丝，不走拖影。
 - 切 Tab 保留 canvas，禁止拆球
 
 ## 6. Agent Prompt
