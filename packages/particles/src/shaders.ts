@@ -260,7 +260,7 @@ void main() {
   vec2 prev = decode(texture(u_prev, uv));
   vec2 curr = decode(texture(u_particles, uv));
   vec2 delta = abs(curr - prev);
-  if (delta.x > 0.015 || delta.y > 0.015) {
+  if (delta.x > 0.12 || delta.y > 0.12) {
     gl_Position = vec4(2.0, 2.0, 0.0, 1.0);
     v_speed = 0.0;
     v_fieldUv = curr;
@@ -407,10 +407,9 @@ void main() {
   vec3 rgb = u_color.rgb;
   float a = u_color.a * core * edge;
   if (v_kind > 0.5 && v_kind < 1.5) {
-    rgb = u_color.rgb;
     a *= mix(0.5, 0.95, nrm);
   } else {
-    rgb = u_color.rgb;
+    a *= mix(0.12, 1.0, nrm);
   }
   fragColor = vec4(rgb * a, a);
 }
@@ -439,9 +438,9 @@ void main() {
     return;
   }
   if (mask < 0.45) discard;
-  // wind: #E8F4F8 tadpole. never speed-tinted.
+  // wind: #FFFFFF glow silk. never speed-tinted. weak wind nearly invisible.
   vec3 rgb = u_color.rgb;
-  float a = u_color.a;
+  float a = u_color.a * mix(0.1, 1.0, nrm);
   fragColor = vec4(rgb * a, a);
 }
 `
@@ -613,8 +612,8 @@ void main() {
   } else if (u_mode < 2.5) {
     rgb = lutRgb(t);
     float luma = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
-    rgb = mix(vec3(luma), rgb, 0.52);
-    alpha = 0.45;
+    rgb = mix(vec3(luma), rgb, 0.5);
+    alpha = 0.3;
   } else {
     // ocean: frost-blue LUT * hard sea mask. land alpha = 0.
     rgb = lutRgb(t);
