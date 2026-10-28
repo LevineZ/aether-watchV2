@@ -13,7 +13,7 @@ describe('kind primitive table', () => {
 
   test('ocean particles are colder, thinner, slower, sparser than wind', () => {
     const src = readFileSync(new URL('./particle-layer.ts', import.meta.url), 'utf8')
-    assert.match(src, /size: 1\.55/)
+    assert.match(src, /size: 1\.7/)
     assert.match(src, /size: 0\.78/)
     assert.match(src, /WIND_SPEED_GLOBAL \* 0\.4/)
     assert.match(src, /\[0\.498, 0\.831, 0\.91, 0\.55\]/)

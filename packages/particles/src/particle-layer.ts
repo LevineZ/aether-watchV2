@@ -183,7 +183,7 @@ function fieldToRgba(frame: FieldFrame): {
  *
  * | kind   | 主视觉原语                                      | 是否粒子                         | 禁止                                      |
  * |--------|-------------------------------------------------|----------------------------------|-------------------------------------------|
- * | wind   | |UV| 色幕 + GPGPU 风速 LUT 彩丝（prev→curr）     | 是                               | 白丝；屏幕划线；POINTS 虚线；无粒子         |
+ * | wind   | 柔色幕 + GPGPU 白蝌蚪（prev→curr 极短尾）         | 是                               | 长面条；风速染粒子；静态流线/等高线         |
  * | temp   | 256×1 LINEAR LUT 平滑热幕 + 场双线性             | 否（count=0 且 particlePass=off） | 任何粒子；斑块/噪声；硬边色带               |
  * | precip | 低周波 fbm 雨团：噪声调 alpha + LUT 采样位      | 否                               | 均匀色幕；脏噪点雾；风场粒子层              |
  * | ocean  | 霜蓝短丝 + FS mask discard，仅海面                | 是（0.4× 风速，极稀）            | 上陆；复用 wind 参数；白色/暖色粒子         |
@@ -196,10 +196,11 @@ export const ADVECT_STEP = 0.0024
 export const ADVECT_DEG_SCALE = 8.5
 export const WIND_SPEED_GLOBAL = 0.18
 export const WIND_SPEED_DESK = 0.09
-export const TRAIL_FADE = 0.96
-export const TRAIL_FADE_OCEAN = 0.93
-export const TRAIL_DECAY = 0.002
-export const TRAIL_DECAY_OCEAN = 0.003
+/** Wind: almost no accumulation — tadpole = this frame's prev→curr only. */
+export const TRAIL_FADE = 0.38
+export const TRAIL_FADE_OCEAN = 0.88
+export const TRAIL_DECAY = 0.02
+export const TRAIL_DECAY_OCEAN = 0.004
 /** Ocean UV is ~cm/s; extra scale keeps silk visible while still 0.4× wind speed coeff. */
 export const OCEAN_ADVECT_MUL = 5
 export const TRAIL_CAP = 0.45
@@ -240,9 +241,9 @@ export const KIND_LOOK: Record<
     style: 'wind-fog',
     overlay: 'wind',
     speed: WIND_SPEED_GLOBAL,
-    drop: 0.0002,
-    size: 1.55,
-    color: [0.09, 0.75, 0.82, 0.42],
+    drop: 0.02,
+    size: 1.7,
+    color: [0.91, 0.957, 0.973, 0.6], // #E8F4F8, never speed-tinted
     ribbonDeg: 5.8,
     ribbonPx: 0.72,
     uvScale: 1,
@@ -294,7 +295,7 @@ export type ParticleLayerOptions = {
  * MapLibre CustomLayer：GPU 粒子。
  * - 粒子 UV 只活在 FieldFrame.bbox 内；每帧用当前相机 defaultProjectionData 重绑，禁止缓存 world→UV。
  * - 空闲 peak≈40 万；拖动停平流、计数不砍；松手 peak + 重投。
- * - wind：|UV| 色幕 + 物理 vel*dt 风速 LUT 彩丝，严禁白丝。
+ * - wind：柔色幕 + 物理 vel*dt 白蝌蚪（#E8F4F8）。每帧 2% 重生。粒子禁止染风速色。
  * - temp：256×1 LINEAR LUT 热幕。particlePass=off，count=0。
  * - precip：低周波 fbm 雨团。particlePass=off，无雨丝。
  * - ocean：霜蓝短丝（#7FD4E8）+ FS 海 mask discard，不上陆。
@@ -868,7 +869,10 @@ export class ParticleLayer {
     g.vertexAttribPointer(0, 2, g.FLOAT, false, 0, 0)
     g.drawArrays(g.TRIANGLE_STRIP, 0, 4)
     g.disableVertexAttribArray(0)
-    if (!moving) this.drawTrailLines(g, matrix, count)
+    if (!moving) {
+      this.drawTrailLines(g, matrix, count)
+      this.drawParticles(g, matrix, count)
+    }
     const tmp = this.trail0
     this.trail0 = this.trail1
     this.trail1 = tmp

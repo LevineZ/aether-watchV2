@@ -78,16 +78,13 @@ void main() {
   vec4 wtex = bilinear(u_wind, suv);
   vec2 vel = mix(u_wind_min, u_wind_max, wtex.rg);
   float mask = wtex.b;
-  float vmax = max(max(abs(u_wind_min.x), abs(u_wind_max.x)), max(abs(u_wind_min.y), abs(u_wind_max.y)));
-  vmax = max(vmax, 0.5);
-  float drop = u_drop_rate + length(vel) / vmax * 0.001;
   float r = rand(pos + u_rand_seed);
   float coslat = max(cos(radians(clamp(lonlat.y, -85.0, 85.0))), 0.2);
   vec2 velAdv = vel * u_speed * u_dt * u_advect_scale;
   vec2 dDeg = vec2(velAdv.x / coslat, velAdv.y);
   lonlat += dDeg;
   pos = lonLatToUv(lonlat, u_bbox);
-  bool dead = mask < 0.45 || r < drop;
+  bool dead = mask < 0.45 || r < u_drop_rate;
   if (u_wrap > 0.5) {
     pos.x = fract(pos.x);
     if (pos.y < 0.0 || pos.y > 1.0) dead = true;
@@ -263,7 +260,7 @@ void main() {
   vec2 prev = decode(texture(u_prev, uv));
   vec2 curr = decode(texture(u_particles, uv));
   vec2 delta = abs(curr - prev);
-  if (delta.x > 0.08 || delta.y > 0.08) {
+  if (delta.x > 0.015 || delta.y > 0.015) {
     gl_Position = vec4(2.0, 2.0, 0.0, 1.0);
     v_speed = 0.0;
     v_fieldUv = curr;
@@ -413,7 +410,7 @@ void main() {
     rgb = u_color.rgb;
     a *= mix(0.5, 0.95, nrm);
   } else {
-    rgb = mix(u_color.rgb, windRamp(nrm), 0.85);
+    rgb = u_color.rgb;
   }
   fragColor = vec4(rgb * a, a);
 }
@@ -442,9 +439,9 @@ void main() {
     return;
   }
   if (mask < 0.45) discard;
-  // wind: speed LUT only. never white.
-  vec3 rgb = texture(u_lut, vec2(nrm, 0.5)).rgb;
-  float a = mix(0.32, 0.72, nrm);
+  // wind: #E8F4F8 tadpole. never speed-tinted.
+  vec3 rgb = u_color.rgb;
+  float a = u_color.a;
   fragColor = vec4(rgb * a, a);
 }
 `
@@ -615,7 +612,9 @@ void main() {
     rgb = mix(vec3(0.031, 0.071, 0.157), rgb, wet);
   } else if (u_mode < 2.5) {
     rgb = lutRgb(t);
-    alpha = 0.28;
+    float luma = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+    rgb = mix(vec3(luma), rgb, 0.52);
+    alpha = 0.45;
   } else {
     // ocean: frost-blue LUT * hard sea mask. land alpha = 0.
     rgb = lutRgb(t);
