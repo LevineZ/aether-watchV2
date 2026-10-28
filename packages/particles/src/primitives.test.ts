@@ -16,11 +16,11 @@ describe('kind primitive table', () => {
     assert.match(src, /size: 1\.55/)
     assert.match(src, /size: 0\.78/)
     assert.match(src, /WIND_SPEED_GLOBAL \* 0\.4/)
-    assert.match(src, /\[0\.498, 0\.831, 0\.91, 0\.22\]/)
+    assert.match(src, /\[0\.498, 0\.831, 0\.91, 0\.38\]/)
     const w = visualCount({ ocean: false, regionalWindow: false, density: 0.48, zoom: 1.35 })
     const o = visualCount({ ocean: true, regionalWindow: false, density: 0.48, zoom: 1.35 })
-    assert.ok(o <= Math.floor(w * 0.35) + 1)
-    assert.ok(o >= Math.floor(w * 0.25))
+    assert.ok(o <= Math.floor(w * 0.22) + 1)
+    assert.ok(o >= Math.floor(w * 0.12))
   })
 
   test('shaders branch by kind: precip fbm, no rain ribbons in render', () => {

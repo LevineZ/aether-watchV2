@@ -15,11 +15,11 @@ describe('n ∝ 1/zoom²', () => {
     assert.ok(desk < 2_500)
   })
 
-  test('ocean is ~30% of wind at the same zoom', () => {
+  test('ocean is ~18% of wind at the same zoom', () => {
     const w = visualCount({ ocean: false, regionalWindow: false, density: 0.48, zoom: 1.35 })
     const o = visualCount({ ocean: true, regionalWindow: false, density: 0.48, zoom: 1.35 })
-    assert.ok(o < w * 0.35)
-    assert.ok(o > w * 0.25)
+    assert.ok(o < w * 0.22)
+    assert.ok(o > w * 0.12)
   })
 
   test('precip never emits particles', () => {

@@ -7,6 +7,26 @@ void main() {
 }
 `
 
+const BILINEAR = `
+vec4 bilinear(sampler2D tex, vec2 uv) {
+  ivec2 ts = textureSize(tex, 0);
+  vec2 texel = vec2(ts);
+  vec2 coord = uv * texel - 0.5;
+  vec2 f = fract(coord);
+  ivec2 i0 = ivec2(floor(coord));
+  ivec2 lim = ts - 1;
+  ivec2 i1 = clamp(i0 + ivec2(1, 0), ivec2(0), lim);
+  ivec2 i2 = clamp(i0 + ivec2(0, 1), ivec2(0), lim);
+  ivec2 i3 = clamp(i0 + ivec2(1, 1), ivec2(0), lim);
+  i0 = clamp(i0, ivec2(0), lim);
+  vec4 a = texelFetch(tex, i0, 0);
+  vec4 b = texelFetch(tex, i1, 0);
+  vec4 c = texelFetch(tex, i2, 0);
+  vec4 d = texelFetch(tex, i3, 0);
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+`
+
 export const UPDATE_FS = `#version 300 es
 precision highp float;
 uniform sampler2D u_particles;
@@ -14,19 +34,17 @@ uniform sampler2D u_wind;
 uniform vec2 u_particle_res;
 uniform vec2 u_wind_min;
 uniform vec2 u_wind_max;
+uniform vec4 u_bbox;
 uniform float u_rand_seed;
 uniform float u_speed;
-uniform float u_advect;
-uniform float u_step;
-uniform float u_speed_ref;
-uniform float u_uv_scale;
+uniform float u_dt;
+uniform float u_advect_scale;
 uniform float u_drop_rate;
 uniform float u_wrap;
-uniform float u_motion;
-uniform float u_wet_min;
 uniform vec4 u_view;
 in vec2 v_uv;
 out vec4 fragColor;
+${BILINEAR}
 
 vec2 decode(vec4 c) {
   return vec2(c.r / 255.0 + c.b, c.g / 255.0 + c.a);
@@ -44,29 +62,32 @@ vec2 spawnInView(vec2 salt) {
   vec2 r = vec2(rand(salt), rand(salt.yx * 1.73 + u_rand_seed));
   return mix(u_view.xy, u_view.zw, r);
 }
+vec2 fieldLonLat(vec2 uv, vec4 bbox) {
+  return vec2(mix(bbox.x, bbox.z, uv.x), mix(bbox.y, bbox.w, uv.y));
+}
+vec2 lonLatToUv(vec2 lonlat, vec4 bbox) {
+  float lonSpan = max(bbox.z - bbox.x, 1e-4);
+  float latSpan = max(bbox.w - bbox.y, 1e-4);
+  return vec2((lonlat.x - bbox.x) / lonSpan, (lonlat.y - bbox.y) / latSpan);
+}
 void main() {
   vec4 pc = texture(u_particles, v_uv);
   vec2 pos = decode(pc);
-  vec4 wtex = texture(u_wind, pos);
+  vec2 lonlat = fieldLonLat(pos, u_bbox);
+  vec2 suv = lonLatToUv(lonlat, u_bbox);
+  vec4 wtex = bilinear(u_wind, suv);
   vec2 vel = mix(u_wind_min, u_wind_max, wtex.rg);
   float mask = wtex.b;
   float vmax = max(max(abs(u_wind_min.x), abs(u_wind_max.x)), max(abs(u_wind_min.y), abs(u_wind_max.y)));
   vmax = max(vmax, 0.5);
-  // Low bump: high drop teleports particles and reads as 乱窜 vs Ventusky silk.
-  float drop = u_drop_rate + length(vel) / vmax * 0.001 * u_uv_scale;
+  float drop = u_drop_rate + length(vel) / vmax * 0.001;
   float r = rand(pos + u_rand_seed);
-  bool dead = false;
-  if (u_motion > 0.5) {
-    pos.y -= u_speed * u_advect * 2.6;
-    pos.x += (vel.x / vmax) * u_speed * u_advect * 0.32;
-    dead = wtex.a < u_wet_min || r < drop * 1.6;
-  } else {
-    float mag = length(vel);
-    vec2 dir = mag > 1e-5 ? vel / mag : vec2(0.0);
-    float nrm = clamp(mag / max(u_speed_ref, 0.4), 0.0, 1.55);
-    pos += dir * nrm * u_step * u_uv_scale;
-    dead = mask < 0.45 || r < drop;
-  }
+  float coslat = max(cos(radians(clamp(lonlat.y, -85.0, 85.0))), 0.2);
+  vec2 velAdv = vel * u_speed * u_dt * u_advect_scale;
+  vec2 dDeg = vec2(velAdv.x / coslat, velAdv.y);
+  lonlat += dDeg;
+  pos = lonLatToUv(lonlat, u_bbox);
+  bool dead = mask < 0.45 || r < drop;
   if (u_wrap > 0.5) {
     pos.x = fract(pos.x);
     if (pos.y < 0.0 || pos.y > 1.0) dead = true;
@@ -79,9 +100,8 @@ void main() {
   if (dead) {
     pos = spawnInView(v_uv + u_rand_seed);
     for (int i = 0; i < 16; i++) {
-      vec4 s = texture(u_wind, pos);
-      bool ok = u_motion > 0.5 ? s.a >= u_wet_min : s.b >= 0.45;
-      if (ok) break;
+      vec4 s = bilinear(u_wind, pos);
+      if (s.b >= 0.45) break;
       pos = spawnInView(pos + vec2(float(i) * 0.17, float(i) * 0.31) + u_rand_seed);
     }
   }
@@ -128,7 +148,6 @@ vec3 windRamp(float t) {
     vec3(0.760, 0.140, 0.280));
 }
 vec3 oceanRamp(float t) {
-  // frost-blue curtain; never the wind speed rainbow
   return mix7(t,
     vec3(0.020, 0.078, 0.176),
     vec3(0.039, 0.176, 0.314),
@@ -206,6 +225,57 @@ void main() {
   vec2 lonlat = fieldLonLat(pos, u_bbox);
   gl_Position = projectTile(mercator(lonlat));
   gl_PointSize = u_size;
+}
+`
+}
+
+/** Prev→curr thin silk. Two verts / particle. Drop reseed/wrap teleports. */
+export function makeTrailLineVS(prelude: string, define: string): string {
+  return `#version 300 es
+${prelude}
+${define}
+uniform sampler2D u_particles;
+uniform sampler2D u_prev;
+uniform sampler2D u_wind;
+uniform vec2 u_particle_res;
+uniform vec2 u_wind_min;
+uniform vec2 u_wind_max;
+uniform vec4 u_bbox;
+uniform float u_count;
+uniform float u_wrap;
+uniform float u_kind;
+out float v_speed;
+out float v_kind;
+out vec2 v_fieldUv;
+${MERCATOR}
+void main() {
+  float vid = float(gl_VertexID);
+  float id = floor(vid * 0.5);
+  float isHead = mod(vid, 2.0);
+  v_kind = u_kind;
+  if (id >= u_count) {
+    gl_Position = vec4(2.0, 2.0, 0.0, 1.0);
+    v_speed = 0.0;
+    v_fieldUv = vec2(0.0);
+    return;
+  }
+  vec2 uv = vec2(mod(id, u_particle_res.x) + 0.5, floor(id / u_particle_res.x) + 0.5) / u_particle_res;
+  vec2 prev = decode(texture(u_prev, uv));
+  vec2 curr = decode(texture(u_particles, uv));
+  vec2 delta = abs(curr - prev);
+  if (delta.x > 0.08 || delta.y > 0.08) {
+    gl_Position = vec4(2.0, 2.0, 0.0, 1.0);
+    v_speed = 0.0;
+    v_fieldUv = curr;
+    return;
+  }
+  vec2 pos = mix(prev, curr, isHead);
+  vec4 wtex = texture(u_wind, curr);
+  vec2 vel = mix(u_wind_min, u_wind_max, wtex.rg);
+  v_speed = length(vel);
+  v_fieldUv = pos;
+  vec2 lonlat = fieldLonLat(pos, u_bbox);
+  gl_Position = projectTile(mercator(lonlat));
 }
 `
 }
@@ -313,6 +383,7 @@ const FALLBACK_PRELUDE =
 
 export const DRAW_VS = makeDrawVS(FALLBACK_PRELUDE, '')
 export const LINE_VS = makeRibbonVS(FALLBACK_PRELUDE, '')
+export const TRAIL_LINE_VS = makeTrailLineVS(FALLBACK_PRELUDE, '')
 export const makeLineVS = makeRibbonVS
 
 export const DRAW_FS = `#version 300 es
@@ -339,13 +410,41 @@ void main() {
   vec3 rgb = u_color.rgb;
   float a = u_color.a * core * edge;
   if (v_kind > 0.5 && v_kind < 1.5) {
-    // ocean: cold #7FD4E8 only — never white, never warm, never windRamp
     rgb = u_color.rgb;
     a *= mix(0.5, 0.95, nrm);
   } else {
-    // wind: the only white streamline
-    rgb = mix(u_color.rgb, vec3(0.92, 0.97, 1.0), nrm * 0.18);
+    rgb = mix(u_color.rgb, vec3(0.91, 0.957, 0.973), nrm * 0.18);
   }
+  fragColor = vec4(rgb * a, a);
+}
+`
+
+export const TRAIL_LINE_FS = `#version 300 es
+precision mediump float;
+uniform sampler2D u_wind;
+uniform vec4 u_color;
+uniform float u_kind;
+uniform float u_speed_ref;
+in float v_speed;
+in float v_kind;
+in vec2 v_fieldUv;
+out vec4 fragColor;
+void main() {
+  float mask = texture(u_wind, v_fieldUv).b;
+  if (v_kind > 0.5 && v_kind < 1.5) {
+    // ocean: #7FD4E8 silk. land mask=0 → discard. never on land.
+    if (mask < 0.5) discard;
+    vec3 rgb = u_color.rgb;
+    float nrm = clamp(v_speed / max(u_speed_ref, 0.4), 0.0, 1.0);
+    float a = u_color.a * mix(0.42, 0.88, nrm);
+    fragColor = vec4(rgb * a, a);
+    return;
+  }
+  if (mask < 0.45) discard;
+  // wind: the only white streamline #E8F4F8
+  vec3 rgb = u_color.rgb;
+  float nrm = clamp(v_speed / max(u_speed_ref, 0.4), 0.0, 1.0);
+  float a = u_color.a * mix(0.55, 1.0, nrm);
   fragColor = vec4(rgb * a, a);
 }
 `
@@ -470,6 +569,8 @@ export const QUAD_GEO_VS = makeQuadGeoVS(FALLBACK_PRELUDE, '')
 export const SCALAR_FS = `#version 300 es
 precision highp float;
 uniform sampler2D u_wind;
+uniform sampler2D u_lut;
+uniform vec4 u_bbox;
 uniform float u_mode;
 uniform float u_hatch;
 uniform float u_wrap;
@@ -477,53 +578,48 @@ uniform float u_time;
 uniform float u_fade_in;
 in vec2 v_uv;
 out vec4 fragColor;
-${MIX7}
+${BILINEAR}
 ${FBM}
 
+vec3 lutRgb(float t) {
+  return texture(u_lut, vec2(clamp(t, 0.0, 1.0), 0.5)).rgb;
+}
+
 void main() {
-  vec4 w = texture(u_wind, v_uv);
+  vec4 w = bilinear(u_wind, v_uv);
   float t = w.a;
   float mask = w.b;
   vec3 rgb;
   float alpha;
   if (u_mode < 0.5) {
-    // temp: smooth color curtain only. no particles, no mottling, no hard bands.
-    rgb = mix7(t,
-      vec3(0.298, 0.114, 0.584),
-      vec3(0.118, 0.251, 0.686),
-      vec3(0.055, 0.647, 0.914),
-      vec3(0.290, 0.871, 0.502),
-      vec3(0.980, 0.800, 0.082),
-      vec3(0.976, 0.451, 0.086),
-      vec3(0.863, 0.149, 0.149));
+    // temp: 256×1 LINEAR LUT, bilinear field. smooth color curtain only.
+    rgb = lutRgb(t);
     alpha = 0.58;
   } else if (u_mode < 1.5) {
     // precip: radar-style blobs. fbm modulates alpha + LUT sample. no particles.
-    float n = fbm3(v_uv * vec2(22.0, 34.0) + vec2(u_time * 0.012, -u_time * 0.008));
-    float n2 = fbm3(v_uv * vec2(51.0, 41.0) - vec2(u_time * 0.007, u_time * 0.011));
-    float mottled = mix(n, n2, 0.42);
-    float sampleT = clamp(t * mix(0.82, 1.18, mottled), 0.0, 1.0);
-    rgb = mix7(sampleT,
-      vec3(0.03, 0.10, 0.28),
-      vec3(0.04, 0.38, 0.52),
-      vec3(0.10, 0.62, 0.38),
-      vec3(0.55, 0.82, 0.12),
-      vec3(0.96, 0.78, 0.08),
-      vec3(0.94, 0.38, 0.08),
-      vec3(0.82, 0.10, 0.14));
-    float dryA = 0.035;
-    float wet = smoothstep(0.03, 0.16, t);
-    float blob = smoothstep(0.32, 0.72, mottled);
-    float edge = mix(0.12, 1.0, blob);
-    alpha = mix(dryA, mix(0.18, 0.70, sampleT) * edge, wet);
-    rgb = mix(vec3(0.03, 0.07, 0.14), rgb, wet);
+    vec2 lonlat = vec2(mix(u_bbox.x, u_bbox.z, v_uv.x), mix(u_bbox.y, u_bbox.w, v_uv.y));
+    vec2 p = lonlat * vec2(0.055, 0.078);
+    vec2 q = vec2(
+      fbm3(p + vec2(u_time * 0.018, 0.11)),
+      fbm3(p + vec2(4.2, 1.7) - vec2(0.0, u_time * 0.014))
+    );
+    float envelope = fbm3(p + q * 0.95);
+    float interior = fbm3(p * 2.35 + q + vec2(2.8, -1.1));
+    float mottled = envelope * 0.72 + interior * 0.28;
+    float sampleT = clamp(t * mix(0.72, 1.28, mottled), 0.0, 1.0);
+    rgb = lutRgb(sampleT);
+    float dryA = 0.02;
+    float wet = smoothstep(0.02, 0.14, t);
+    float blob = smoothstep(0.40, 0.60, envelope);
+    float edge = mix(0.10, 1.0, blob);
+    alpha = mix(dryA, mix(0.22, 0.78, sampleT) * edge, wet);
+    rgb = mix(vec3(0.031, 0.071, 0.157), rgb, wet);
   } else if (u_mode < 2.5) {
-    // wind: |UV| speed curtain; particles are a separate pass
-    rgb = windRamp(t);
+    rgb = lutRgb(t);
     alpha = 0.28;
   } else {
-    // ocean: frost-blue * hard sea mask. land alpha = 0.
-    rgb = oceanRamp(t);
+    // ocean: frost-blue LUT * hard sea mask. land alpha = 0.
+    rgb = lutRgb(t);
     alpha = 0.34 * mask;
   }
   alpha *= u_fade_in;

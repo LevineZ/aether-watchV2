@@ -1,7 +1,7 @@
 ---
 version: light-repo-gate
 name: AetherWatch-design
-description: "v0.11 浅色白胶囊：色场铺满，白发丝岸线，左彩点要素轨，右竖色阶，底黑播放钮。废弃深色三栏指挥大屏与深色 Ventusky 壳。"
+description: "v0.11 浅色白胶囊：色场铺满，1px #888 岸线，左彩点要素轨，右竖色阶，底黑播放钮。废弃深色三栏指挥大屏与深色 Ventusky 壳。"
 colors:
   canvas: "#0b0f0c"
   chrome: "#ffffff"
@@ -13,7 +13,7 @@ colors:
   dot-temp: "#f97316"
   dot-precip: "#2dd4bf"
   dot-ocean: "#7dd3fc"
-  coast: "#ffffff"
+  coast: "#888888"
   ink: "#111111"
   primary: "#111111"
   on-primary: "#ffffff"
@@ -55,7 +55,7 @@ components:
 
 # AetherWatch DESIGN.md（v0.11 浅色白胶囊）
 
-> **壳层定稿**：白胶囊浮在色场上。选中条 / 播放 / 缩放为黑圆。岸线白发丝。城市注记带气温。  
+> **壳层定稿**：白胶囊浮在色场上。选中条 / 播放 / 缩放为黑圆。岸线 1px 浅灰 `#888`。城市注记带气温。  
 > **废弃**：深色三栏指挥大屏、墨蓝 `#0a1628` + 克制青 `#5ac8e6` 的 Ventusky 克隆壳。  
 > **仍禁止**：刮 Ventusky / Windy / 高德天气瓦片。场数据用自己的 FieldFrame。
 
@@ -72,7 +72,7 @@ components:
 | chrome | `#ffffff` | 胶囊、卡片、日期 pill |
 | chrome-ink | `#111111` | 字、选中条、播放钮、+/− |
 | dot-wind / temp / precip / ocean | `#3b82f6` / `#f97316` / `#2dd4bf` / `#7dd3fc` | 左轨彩点 |
-| coast | `#ffffff` | NE110m / OMT 岸线与国界 |
+| coast | `#888888` | NE110m 1px 极细浅灰岸线 |
 | semantic-ok | `#22c55e` | 「显示」绿点 |
 
 **禁止**：壳层再用 `#5ac8e6` 作主色、深色玻璃顶栏、彩虹 UI 控件。
@@ -95,17 +95,17 @@ components:
 
 | 场 | 锁版 |
 |----|------|
-| 气温 | 平滑热幕（alpha≈0.58），无粒子、无斑块、无硬边；切走时卸载粒子通道 |
-| 降雨 | fbm 雨团斑块（边缘不规则、内部斑驳）；干区极淡深蓝底 0.02–0.05；无粒子、无白点 |
-| 风 | |UV| 色幕（约 0.28）+ **细白 GPGPU 流线**（唯一白发丝）；速度全球 0.18 / 东亚 0.09；n∝1/zoom² |
-| 洋流 | 霜蓝色幕 × mask + 更细/更长/更慢/更稀的冷色 `#7FD4E8` 流线；陆地 alpha=0 |
+| 气温 | 256×1 LINEAR LUT（≥15 节点）+ 场双线性，平滑热幕 alpha≈0.58；无粒子、无硬边色带 |
+| 降雨 | 低周波 fbm 雨团：噪声调制 alpha 与 LUT 采样位；干区深蓝底 α=0.02；无粒子 |
+| 风 | |UV| 色幕（约 0.28）+ **物理 vel×dt 白丝** `#E8F4F8`（prev→curr 细线，禁止屏幕划线）；速度全球 0.18 / 东亚 0.09；n∝1/zoom² |
+| 洋流 | 霜蓝色幕 × mask + 更细/更短/更慢/极稀的冷色 `#7FD4E8` 流线；FS mask=0 discard，不上陆 |
 
 不刮第三方雷达 / 风场瓦片。Global 包必须 721×361 全球窗（O1）。
 
 ## 5. 粒子 / GPU
 
 - 观感峰值 30万–60万；拖动 / 缩放 / 切 Tab 降档或 pause
-- 粒子通道仅 wind / ocean。temp / precip 不跑 GPGPU、不 stamp。风/洋流屏空间拖影带 decay + cap；切 kind ≤200ms 淡入并清空上一层残影。
+- 粒子通道仅 wind / ocean。temp / precip 不跑 GPGPU、不 stamp。平流在 fragment 用经纬度采样 u10/v10，`pos += vel * dt`。拖尾是 prev→curr 极细线 + FBO 衰减；切 kind ≤200ms 淡入并清空上一层残影。
 - 切 Tab 保留 canvas，禁止拆球
 
 ## 6. Agent Prompt
@@ -113,7 +113,7 @@ components:
 ```
 按 v0.11 浅色白胶囊做壳（不要深色 Ventusky 壳，不要三栏大屏）：
 - 白 pill + 黑选中 / 黑播放 / 黑 +−
-- 白发丝岸线，城市名+气温
+- 1px `#888` 浅灰岸线，城市名+气温
 - 左下独立要素胶囊（可收起） / 右竖色阶 / 底时次轴
 - 区域场空态居中双 CTA；未上传不绑场
 - 台风白虚线+紫点（青岚/霜澜）

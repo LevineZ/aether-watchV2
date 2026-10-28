@@ -17,7 +17,7 @@ export function lodCount(level: LodLevel): number {
 
 const ZOOM_REF = 1.35
 
-/** n∝1/zoom²：仅 wind。temp/precip count=0；ocean 约为 wind 的 30%。 */
+/** n∝1/zoom²：仅 wind。temp/precip count=0；ocean 约为 wind 的 18%（极稀）。 */
 export function zoomCountMul(zoom: number): number {
   const z = Math.max(0.85, zoom)
   return Math.max(0.08, Math.min(1.35, (ZOOM_REF / z) ** 2))
@@ -28,7 +28,7 @@ function windCount(opts: { regionalWindow: boolean; density: number; zoom?: numb
   return Math.floor((opts.regionalWindow ? 6_000 : 15_000) * d * zoomCountMul(opts.zoom ?? ZOOM_REF))
 }
 
-/** 粒子只给 wind / ocean。precip 必须是 0。ocean ≈ 30% wind。 */
+/** 粒子只给 wind / ocean。precip 必须是 0。ocean ≈ 18% wind。 */
 export function visualCount(opts: {
   ocean: boolean
   precip?: boolean
@@ -38,6 +38,6 @@ export function visualCount(opts: {
 }): number {
   if (opts.precip) return 0
   const wind = windCount(opts)
-  if (opts.ocean) return Math.max(320, Math.floor(wind * 0.3))
+  if (opts.ocean) return Math.max(180, Math.floor(wind * 0.18))
   return wind
 }

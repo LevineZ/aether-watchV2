@@ -1,4 +1,5 @@
 export {
+  ADVECT_DEG_SCALE,
   ADVECT_STEP,
   KIND_LOOK,
   KIND_SWITCH_MS,
@@ -15,6 +16,7 @@ export {
   kindCode,
   usesParticlePass,
 } from './particle-layer'
+export { LUT_WIDTH, TEMP_STOPS, buildLut256, lutForOverlay } from './lut'
 export type { FieldStyle, OverlayMode, ParticleLayerOptions, PoolId } from './particle-layer'
 export { LOD, PARTICLE_TEX, lodCount, visualCount, zoomCountMul } from './lod'
 export type { LodLevel } from './lod'

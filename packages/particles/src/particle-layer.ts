@@ -9,6 +9,7 @@ import {
 } from '@aether/field'
 import { PARTICLE_TEX, visualCount, type LodLevel } from './lod'
 import { fieldViewUv } from './view-uv'
+import { LUT_WIDTH, lutForOverlay } from './lut'
 import {
   BLIT_FS,
   DRAW_FS,
@@ -19,10 +20,13 @@ import {
   QUAD_GEO_VS,
   QUAD_VS,
   SCALAR_FS,
+  TRAIL_LINE_FS,
+  TRAIL_LINE_VS,
   UPDATE_FS,
   makeDrawVS,
   makeLineVS,
   makeQuadGeoVS,
+  makeTrailLineVS,
 } from './shaders'
 
 export type PoolId = 'wind' | 'currents'
@@ -179,24 +183,26 @@ function fieldToRgba(frame: FieldFrame): {
  *
  * | kind   | 主视觉原语                                      | 是否粒子                         | 禁止                                      |
  * |--------|-------------------------------------------------|----------------------------------|-------------------------------------------|
- * | wind   | |UV| 色幕 + GPGPU 细白粒子流线                   | 是（唯一白流线层）               | 无粒子；只画色幕；粒子长成面片/噪点/粗线   |
- * | temp   | 仅连续色幕，平滑色带                             | 否（count=0 且 particlePass=off） | 任何粒子；斑块/噪声；硬边色带               |
- * | precip | 雨团斑块：fbm 调制 alpha 色幕                    | 否                               | 细白点；均匀色幕；风场粒子层；整片透明/实心 |
- * | ocean  | 霜蓝色幕 + 稀疏细长慢速冷色流线，仅海面          | 是（参数必须明显异于 wind）      | 上陆；复用 wind 参数；白色/暖色粒子         |
+ * | wind   | |UV| 色幕 + GPGPU 物理平流白丝（prev→curr 细线） | 是（唯一白流线层）               | 屏幕划线；POINTS 虚线；无粒子               |
+ * | temp   | 256×1 LINEAR LUT 平滑热幕 + 场双线性             | 否（count=0 且 particlePass=off） | 任何粒子；斑块/噪声；硬边色带               |
+ * | precip | 低周波 fbm 雨团：噪声调 alpha + LUT 采样位      | 否                               | 均匀色幕；脏噪点雾；风场粒子层              |
+ * | ocean  | 霜蓝短丝 + FS mask discard，仅海面                | 是（0.4× 风速，极稀）            | 上陆；复用 wind 参数；白色/暖色粒子         |
  *
  * 粒子 GPGPU 仅 wind/ocean 运行。temp/precip 不更新粒子纹理、不 stamp、不 blit。
+ * 平流：fragment 用经纬度采样 u10/v10，pos += vel * dt。禁止 dir*step 屏幕划线。
  */
 export const ADVECT_STEP = 0.0024
+/** Degrees of lon at equator per (m/s) at speed=1, dt=1. speed=0.18 ≈ 1.2px/frame @ 12 m/s global. */
+export const ADVECT_DEG_SCALE = 8.5
 export const WIND_SPEED_GLOBAL = 0.18
 export const WIND_SPEED_DESK = 0.09
-export const TRAIL_FADE = 0.988
-export const TRAIL_FADE_OCEAN = 0.994
-export const TRAIL_DECAY = 0.0012
-export const TRAIL_DECAY_OCEAN = 0.00035
-export const TRAIL_CAP = 0.4
-export const TRAIL_GAIN = 0.86
+export const TRAIL_FADE = 0.96
+export const TRAIL_FADE_OCEAN = 0.88
+export const TRAIL_DECAY = 0.002
+export const TRAIL_DECAY_OCEAN = 0.006
+export const TRAIL_CAP = 0.45
+export const TRAIL_GAIN = 0.92
 export const KIND_SWITCH_MS = 200
-/** Screen pixels per frame at |vel| = speedRef. Keep ≤ point size so silk does not dash. */
 export const TRAIL_TARGET_PX = 0.92
 export const OCEAN_TARGET_PX = 1.84
 
@@ -234,7 +240,7 @@ export const KIND_LOOK: Record<
     speed: WIND_SPEED_GLOBAL,
     drop: 0.0002,
     size: 1.55,
-    color: [0.92, 0.97, 1.0, 0.24],
+    color: [0.91, 0.957, 0.973, 0.5], // #E8F4F8
     ribbonDeg: 5.8,
     ribbonPx: 0.72,
     uvScale: 1,
@@ -246,7 +252,7 @@ export const KIND_LOOK: Record<
     speed: WIND_SPEED_GLOBAL * 0.4,
     drop: 0.00012,
     size: 0.78,
-    color: [0.498, 0.831, 0.91, 0.22],
+    color: [0.498, 0.831, 0.91, 0.38],
     ribbonDeg: 3.2,
     ribbonPx: 7.2,
     uvScale: 1,
@@ -286,10 +292,10 @@ export type ParticleLayerOptions = {
  * MapLibre CustomLayer：GPU 粒子。
  * - 粒子 UV 只活在 FieldFrame.bbox 内；每帧用当前相机 defaultProjectionData 重绑，禁止缓存 world→UV。
  * - 空闲 peak≈40 万；拖动停平流、计数不砍；松手 peak + 重投。
- * - wind：|UV| 色幕 + 细白 GPGPU 流线（唯一白发丝）。
- * - temp：平滑热幕。particlePass=off，count=0。
- * - precip：fbm 雨团色幕。particlePass=off，无雨丝。
- * - ocean：霜蓝色幕 + 更细更长更慢更稀的冷色流线，只画海。
+ * - wind：|UV| 色幕 + 物理 vel*dt 白丝（#E8F4F8），prev→curr 细线。
+ * - temp：256×1 LINEAR LUT 热幕。particlePass=off，count=0。
+ * - precip：低周波 fbm 雨团。particlePass=off，无雨丝。
+ * - ocean：霜蓝短丝（#7FD4E8）+ FS 海 mask discard，不上陆。
  * - 粒子只活在相机可见 UV 窗。拖动清空拖影，禁止拖花。
  */
 export class ParticleLayer {
@@ -302,9 +308,11 @@ export class ParticleLayer {
   private updateProg: WebGLProgram | null = null
   private drawProg: WebGLProgram | null = null
   private lineProg: WebGLProgram | null = null
+  private trailLineProg: WebGLProgram | null = null
   private scalarProg: WebGLProgram | null = null
   private fadeProg: WebGLProgram | null = null
   private blitProg: WebGLProgram | null = null
+  private lutTex: WebGLTexture | null = null
   private trail0: WebGLTexture | null = null
   private trail1: WebGLTexture | null = null
   private trailFbo: WebGLFramebuffer | null = null
@@ -345,6 +353,7 @@ export class ParticleLayer {
   private didPrerender = false
   private kindSwitchAt = 0
   private shaderVariant = ''
+  private lastAdvectAt = 0
   private proj: ProjectionPack | null = null
   private moveHandler?: () => void
   private idleHandler?: () => void
@@ -361,9 +370,11 @@ export class ParticleLayer {
     this.updateProg = program(g, QUAD_VS, UPDATE_FS)
     this.drawProg = program(g, DRAW_VS, DRAW_FS)
     this.lineProg = program(g, LINE_VS, LINE_FS)
+    this.trailLineProg = program(g, TRAIL_LINE_VS, TRAIL_LINE_FS)
     this.scalarProg = program(g, QUAD_GEO_VS, SCALAR_FS)
     this.fadeProg = program(g, QUAD_VS, FADE_FS)
     this.blitProg = program(g, QUAD_VS, BLIT_FS)
+    this.lutTex = createRgbaTex(g, LUT_WIDTH, 1, lutForOverlay('wind'), g.LINEAR)
     this.trailFbo = g.createFramebuffer()
     this.quadBuf = g.createBuffer()
     g.bindBuffer(g.ARRAY_BUFFER, this.quadBuf)
@@ -414,6 +425,7 @@ export class ParticleLayer {
       g.deleteProgram(this.updateProg)
       g.deleteProgram(this.drawProg)
       g.deleteProgram(this.lineProg)
+      g.deleteProgram(this.trailLineProg)
       g.deleteProgram(this.scalarProg)
       g.deleteProgram(this.fadeProg)
       g.deleteProgram(this.blitProg)
@@ -422,6 +434,7 @@ export class ParticleLayer {
       g.deleteTexture(this.ptex0)
       g.deleteTexture(this.ptex1)
       g.deleteTexture(this.windTex)
+      g.deleteTexture(this.lutTex)
       g.deleteTexture(this.trail0)
       g.deleteTexture(this.trail1)
       g.deleteFramebuffer(this.fbo)
@@ -493,6 +506,8 @@ export class ParticleLayer {
     this.uvScale = look.uvScale
     this.pool = look.pool
     this.kindSwitchAt = performance.now()
+    this.lastAdvectAt = 0
+    if (this.gl && this.lutTex) this.uploadLut(this.gl)
     this.clearTrail()
     const lonSpan = Math.abs(this.bbox[2] - this.bbox[0])
     this.wrap = lonSpan > 350 ? 1 : 0
@@ -574,6 +589,7 @@ export class ParticleLayer {
     g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR)
     g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR)
     g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, frame.nx, frame.ny, 0, g.RGBA, g.UNSIGNED_BYTE, packed.data)
+    this.uploadLut(g)
     if (this.showParticles()) this.reseed(g)
     this.clearTrail()
     this.hasFrame = true
@@ -672,15 +688,6 @@ export class ParticleLayer {
     this.applyKindLook(inferKind(frame))
   }
 
-  /** UV delta that moves a p95 particle ~TRAIL_TARGET_PX on the current view. */
-  private trailStepUv(): number {
-    const canvas = this.map?.getCanvas()
-    const w = Math.max(1, canvas?.width ?? 1440)
-    const du = Math.max(1e-4, this.viewUv[2] - this.viewUv[0])
-    const target = this.kind === 'ocean' ? OCEAN_TARGET_PX : TRAIL_TARGET_PX
-    return target / (w / du)
-  }
-
   private viewLonSpan(): number {
     const map = this.map
     if (!map) return this.wrap ? 360 : Math.abs(this.bbox[2] - this.bbox[0])
@@ -735,6 +742,7 @@ export class ParticleLayer {
 
   private reseed(g: GL) {
     if (!this.ptex0 || !this.ptex1) return
+    this.lastAdvectAt = 0
     this.syncViewWindow()
     const seed = seedParticles(PARTICLE_TEX.width, PARTICLE_TEX.height, this.viewUv)
     g.bindTexture(g.TEXTURE_2D, this.ptex0)
@@ -747,12 +755,19 @@ export class ParticleLayer {
     try {
       const draw = program(g, makeDrawVS(shaderData.vertexShaderPrelude, shaderData.define), DRAW_FS)
       const line = program(g, makeLineVS(shaderData.vertexShaderPrelude, shaderData.define), LINE_FS)
+      const trailLine = program(
+        g,
+        makeTrailLineVS(shaderData.vertexShaderPrelude, shaderData.define),
+        TRAIL_LINE_FS,
+      )
       const scalar = program(g, makeQuadGeoVS(shaderData.vertexShaderPrelude, shaderData.define), SCALAR_FS)
       if (this.drawProg) g.deleteProgram(this.drawProg)
       if (this.lineProg) g.deleteProgram(this.lineProg)
+      if (this.trailLineProg) g.deleteProgram(this.trailLineProg)
       if (this.scalarProg) g.deleteProgram(this.scalarProg)
       this.drawProg = draw
       this.lineProg = line
+      this.trailLineProg = trailLine
       this.scalarProg = scalar
       this.shaderVariant = shaderData.variantName
     } catch (err) {
@@ -851,7 +866,7 @@ export class ParticleLayer {
     g.vertexAttribPointer(0, 2, g.FLOAT, false, 0, 0)
     g.drawArrays(g.TRIANGLE_STRIP, 0, 4)
     g.disableVertexAttribArray(0)
-    if (!moving) this.drawParticles(g, matrix, count)
+    if (!moving) this.drawTrailLines(g, matrix, count)
     const tmp = this.trail0
     this.trail0 = this.trail1
     this.trail1 = tmp
@@ -896,16 +911,18 @@ export class ParticleLayer {
     g.uniform2f(g.getUniformLocation(this.updateProg, 'u_particle_res'), PARTICLE_TEX.width, PARTICLE_TEX.height)
     g.uniform2f(g.getUniformLocation(this.updateProg, 'u_wind_min'), this.uMin, this.vMin)
     g.uniform2f(g.getUniformLocation(this.updateProg, 'u_wind_max'), this.uMax, this.vMax)
+    g.uniform4f(g.getUniformLocation(this.updateProg, 'u_bbox'), this.bbox[0], this.bbox[1], this.bbox[2], this.bbox[3])
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_rand_seed'), Math.random())
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_speed'), this.speed * this.speedMul)
-    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_advect'), ADVECT_STEP)
-    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_step'), this.trailStepUv())
-    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_speed_ref'), this.speedRef)
-    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_uv_scale'), this.uvScale)
+    const now = performance.now()
+    const dt = this.lastAdvectAt
+      ? Math.min(0.05, Math.max(0.008, (now - this.lastAdvectAt) / 1000))
+      : 1 / 60
+    this.lastAdvectAt = now
+    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_dt'), dt)
+    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_advect_scale'), ADVECT_DEG_SCALE)
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_drop_rate'), this.drop)
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_wrap'), this.wrap)
-    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_motion'), this.kind === 'precip' ? 1 : 0)
-    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_wet_min'), 0.07)
     g.uniform4f(
       g.getUniformLocation(this.updateProg, 'u_view'),
       this.viewUv[0],
@@ -923,6 +940,54 @@ export class ParticleLayer {
     this.ptex1 = tmp
     g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
     g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
+  }
+
+  private uploadLut(g: GL) {
+    if (!this.lutTex) return
+    const data = lutForOverlay(this.overlay === 'none' ? 'wind' : this.overlay)
+    g.bindTexture(g.TEXTURE_2D, this.lutTex)
+    g.pixelStorei(g.UNPACK_ALIGNMENT, 1)
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR)
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.LINEAR)
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE)
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE)
+    g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, LUT_WIDTH, 1, 0, g.RGBA, g.UNSIGNED_BYTE, data)
+  }
+
+  private drawTrailLines(g: GL, matrix: Float32Array | number[], count: number) {
+    if (!this.trailLineProg || !this.ptex0 || !this.ptex1) return
+    g.enable(g.BLEND)
+    g.blendFunc(g.ONE, g.ONE_MINUS_SRC_ALPHA)
+    g.disable(g.DEPTH_TEST)
+    g.disableVertexAttribArray(0)
+    g.useProgram(this.trailLineProg)
+    g.activeTexture(g.TEXTURE0)
+    g.bindTexture(g.TEXTURE_2D, this.ptex0)
+    g.uniform1i(g.getUniformLocation(this.trailLineProg, 'u_particles'), 0)
+    g.activeTexture(g.TEXTURE1)
+    g.bindTexture(g.TEXTURE_2D, this.ptex1)
+    g.uniform1i(g.getUniformLocation(this.trailLineProg, 'u_prev'), 1)
+    g.activeTexture(g.TEXTURE2)
+    g.bindTexture(g.TEXTURE_2D, this.windTex)
+    g.uniform1i(g.getUniformLocation(this.trailLineProg, 'u_wind'), 2)
+    g.uniform2f(g.getUniformLocation(this.trailLineProg, 'u_particle_res'), PARTICLE_TEX.width, PARTICLE_TEX.height)
+    g.uniform2f(g.getUniformLocation(this.trailLineProg, 'u_wind_min'), this.uMin, this.vMin)
+    g.uniform2f(g.getUniformLocation(this.trailLineProg, 'u_wind_max'), this.uMax, this.vMax)
+    this.bindProjection(g, this.trailLineProg, matrix)
+    this.bindField(g, this.trailLineProg)
+    g.uniform1f(g.getUniformLocation(this.trailLineProg, 'u_count'), count)
+    g.uniform1f(g.getUniformLocation(this.trailLineProg, 'u_wrap'), this.wrap)
+    g.uniform1f(g.getUniformLocation(this.trailLineProg, 'u_speed_ref'), this.speedRef)
+    g.uniform1f(g.getUniformLocation(this.trailLineProg, 'u_kind'), kindCode(this.kind))
+    g.uniform4f(
+      g.getUniformLocation(this.trailLineProg, 'u_color'),
+      this.color[0],
+      this.color[1],
+      this.color[2],
+      this.color[3],
+    )
+    g.lineWidth(1)
+    g.drawArrays(g.LINES, 0, count * 2)
   }
 
   private drawParticles(g: GL, matrix: Float32Array | number[], count: number) {
@@ -1001,6 +1066,9 @@ export class ParticleLayer {
     g.activeTexture(g.TEXTURE0)
     g.bindTexture(g.TEXTURE_2D, this.windTex)
     g.uniform1i(g.getUniformLocation(this.scalarProg, 'u_wind'), 0)
+    g.activeTexture(g.TEXTURE1)
+    g.bindTexture(g.TEXTURE_2D, this.lutTex)
+    g.uniform1i(g.getUniformLocation(this.scalarProg, 'u_lut'), 1)
     this.bindProjection(g, this.scalarProg, matrix)
     this.bindField(g, this.scalarProg)
     g.uniform2f(g.getUniformLocation(this.scalarProg, 'u_grid'), lonSeg, latSeg)

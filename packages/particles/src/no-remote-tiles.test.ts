@@ -21,4 +21,12 @@ describe('no third-party weather tiles', () => {
       assert.equal(banned.test(src), false, file)
     }
   })
+
+  test('basemap coasts are 1px #888, not thick white hairlines', () => {
+    const style = readFileSync(join(webRoot, 'map/style.ts'), 'utf8')
+    assert.match(style, /id: 'coast-line'/)
+    assert.match(style, /'line-color': '#888888'/)
+    assert.match(style, /'line-width': 1/)
+    assert.doesNotMatch(style, /'line-color': '#ffffff'[\s\S]{0,80}line-width': \['interpolate'/)
+  })
 })

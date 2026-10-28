@@ -31,7 +31,7 @@ const LABEL_PAINT = {
 
 const SIZE_FAR_NEAR = ['interpolate', ['linear'], ['zoom'], 0, 11, 2.4, 12, 5, 13, 7.5, 14]
 
-/** 粒子插在第一层注记之前，白岸线/地名压在场上。 */
+/** 粒子插在第一层注记之前，1px #888 岸线/地名压在场上。 */
 export const PLACE_BEFORE_ID = 'place-ocean'
 
 export const mapStyle = {
@@ -77,9 +77,9 @@ export const mapStyle = {
       type: 'line',
       source: 'land',
       paint: {
-        'line-color': '#ffffff',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.55, 3, 0.85, 6, 1.15, 9, 1.4],
-        'line-opacity': 0.94,
+        'line-color': '#888888',
+        'line-width': 1,
+        'line-opacity': 0.82,
       },
     },
     {
@@ -89,9 +89,9 @@ export const mapStyle = {
       'source-layer': 'boundary',
       filter: ['all', ['==', ['to-number', ['get', 'admin_level']], 2], ['!=', ['get', 'maritime'], 1]],
       paint: {
-        'line-color': '#ffffff',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.35, 6, 0.8],
-        'line-opacity': 0.55,
+        'line-color': '#666666',
+        'line-width': 0.5,
+        'line-opacity': 0.4,
       },
     },
     {
