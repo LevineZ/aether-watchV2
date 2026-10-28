@@ -359,8 +359,8 @@ void main() {
   float fade = mix(1.0, 0.18, v_along);
   float widthFade = 1.0 - smoothstep(0.28, 1.0, abs(v_side));
   vec3 ramp = windRamp(nrm);
-  vec3 rgb = mix(vec3(0.92, 0.96, 1.0), ramp, mix(0.38, 0.82, nrm));
-  float alpha = mix(0.38, 0.92, nrm) * fade * widthFade * edge;
+  vec3 rgb = mix(vec3(0.62, 0.72, 0.98), ramp, mix(0.55, 1.0, nrm));
+  float alpha = mix(0.48, 0.95, nrm) * fade * widthFade * edge;
   fragColor = vec4(rgb, alpha);
 }
 `
