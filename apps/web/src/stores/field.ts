@@ -33,6 +33,7 @@ export const useFieldStore = defineStore('field', {
     ncStatus: '' as string,
     ncError: '' as string,
     uploaded: false,
+    uploadName: '' as string,
     pageSeq: 0,
     /** 页:要素 → 缺包 / 404，灰芯片，禁止回退区域包。 */
     missing: {} as Record<string, boolean>,
@@ -90,8 +91,8 @@ export const useFieldStore = defineStore('field', {
       }
       mapRuntime.particles?.setFrame(frame)
       lockBounds(ui.page === 'regional' ? (frame?.bbox ?? null) : null, ui.page)
-      if (frame && (ui.page === 'desk' || ui.page === 'global')) {
-        fitFieldView(ui.page)
+      if (frame && (ui.page === 'desk' || ui.page === 'global' || ui.page === 'regional')) {
+        fitFieldView(ui.page, frame.bbox)
       }
     },
     dropGlobalBind() {
@@ -252,7 +253,7 @@ export const useFieldStore = defineStore('field', {
       }
       window.setTimeout(() => void run(), 600)
     },
-    async uploadNc(file: File, bbox: [number, number, number, number]) {
+    async uploadNc(file: File, bbox?: [number, number, number, number]) {
       this.ncError = ''
       this.ncStatus = 'reading'
       try {
@@ -264,6 +265,7 @@ export const useFieldStore = defineStore('field', {
         this.bindToGpu(frame, 'upload')
         this.cache.upload = frame
         this.uploaded = true
+        this.uploadName = file.name
         this.status = 'ready'
         this.ncStatus = 'done'
       } catch (e) {
@@ -275,9 +277,11 @@ export const useFieldStore = defineStore('field', {
     clearUpload() {
       delete this.cache.upload
       this.uploaded = false
+      this.uploadName = ''
       this.ncError = ''
       this.ncStatus = ''
-      void this.ensurePack(PAGE_PACK.regional)
+      this.bindToGpu(null)
+      this.status = 'idle'
     },
   },
 })

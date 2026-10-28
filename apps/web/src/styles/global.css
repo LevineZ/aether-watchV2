@@ -7,7 +7,7 @@
 }
 
 ::selection {
-  background: rgba(17, 17, 17, 0.12);
+  background: rgba(62, 198, 200, 0.28);
 }
 
 html,
@@ -37,7 +37,7 @@ button {
 
 button:focus-visible,
 input:focus-visible {
-  outline: 2px solid #111;
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
@@ -93,13 +93,14 @@ a {
 .glass {
   background: var(--chrome);
   color: var(--chrome-ink);
+  border: 1px solid var(--panel-border);
   border-radius: var(--radius-pill);
   box-shadow: var(--shadow-pill);
 }
 
 .btn-primary {
-  background: #111;
-  color: #fff;
+  background: var(--primary);
+  color: var(--on-primary);
   border-radius: var(--radius-pill);
   padding: 10px 18px;
   font-weight: 600;
@@ -107,10 +108,16 @@ a {
 }
 
 .btn-ghost {
-  background: #fff;
-  color: #111;
-  border: 1px solid rgba(17, 17, 17, 0.12);
+  background: transparent;
+  color: var(--chrome-ink);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--radius-pill);
   padding: 10px 18px;
   font-size: 13px;
+}
+
+.btn-ghost:disabled,
+.btn-primary:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
 }

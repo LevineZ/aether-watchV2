@@ -18,7 +18,7 @@ function cycloneBitmap(): ImageData {
   const g = c.getContext('2d')!
   g.clearRect(0, 0, s, s)
   g.translate(s / 2, s / 2)
-  g.strokeStyle = '#7c3aed'
+  g.strokeStyle = '#ff2d3d'
   g.lineWidth = 2.4
   g.lineCap = 'round'
   g.beginPath()
@@ -67,7 +67,13 @@ export function ensureTyphoonOverlay(map: MapLibreMap, beforeId?: string) {
     map.addSource(SRC, { type: 'geojson', data: '/geo/typhoon-demo.json' })
   }
   const linePaint = {
-    'line-color': '#ffffff',
+    'line-color': '#b44dff',
+    'line-width': 1.15,
+    'line-dasharray': [1.1, 1.8],
+    'line-opacity': 0.92,
+  }
+  const fcstPaint = {
+    'line-color': '#3ec6ff',
     'line-width': 1.15,
     'line-dasharray': [1.1, 1.8],
     'line-opacity': 0.92,
@@ -91,7 +97,7 @@ export function ensureTyphoonOverlay(map: MapLibreMap, beforeId?: string) {
         type: 'line',
         source: SRC,
         filter: ['==', ['get', 'kind'], 'forecast'],
-        paint: linePaint,
+        paint: fcstPaint,
       },
       before,
     )
@@ -105,9 +111,17 @@ export function ensureTyphoonOverlay(map: MapLibreMap, beforeId?: string) {
         filter: ['==', ['get', 'kind'], 'dot'],
         paint: {
           'circle-radius': 2.4,
-          'circle-color': '#c4b5fd',
-          'circle-stroke-color': '#7c3aed',
-          'circle-stroke-width': 0.7,
+          'circle-color': [
+            'match',
+            ['get', 'phase'],
+            'fcst',
+            '#3ec6ff',
+            'now',
+            '#ff2d3d',
+            '#b44dff',
+          ],
+          'circle-stroke-color': '#111111',
+          'circle-stroke-width': 0.5,
         },
       },
       before,
@@ -122,8 +136,8 @@ export function ensureTyphoonOverlay(map: MapLibreMap, beforeId?: string) {
         filter: ['==', ['get', 'kind'], 'center'],
         paint: {
           'circle-radius': 9,
-          'circle-color': 'rgba(255,255,255,0.18)',
-          'circle-stroke-color': '#ffffff',
+          'circle-color': 'rgba(255,45,61,0.18)',
+          'circle-stroke-color': '#ff2d3d',
           'circle-stroke-width': 1.4,
         },
       },
@@ -139,8 +153,8 @@ export function ensureTyphoonOverlay(map: MapLibreMap, beforeId?: string) {
         filter: ['==', ['get', 'kind'], 'center'],
         paint: {
           'circle-radius': 3.2,
-          'circle-color': '#ffffff',
-          'circle-stroke-color': '#7c3aed',
+          'circle-color': '#ff2d3d',
+          'circle-stroke-color': '#ffffff',
           'circle-stroke-width': 1,
         },
       },
@@ -179,9 +193,9 @@ export function ensureTyphoonOverlay(map: MapLibreMap, beforeId?: string) {
           'text-allow-overlap': true,
         },
         paint: {
-          'text-color': '#111111',
-          'text-halo-color': '#ffffff',
-          'text-halo-width': 1.4,
+          'text-color': '#f3f4f6',
+          'text-halo-color': '#111111',
+          'text-halo-width': 1.2,
           'text-halo-blur': 0.2,
         },
       },
@@ -203,9 +217,9 @@ export function ensureTyphoonOverlay(map: MapLibreMap, beforeId?: string) {
           'text-allow-overlap': true,
         },
         paint: {
-          'text-color': '#111111',
-          'text-halo-color': '#ffffff',
-          'text-halo-width': 1.4,
+          'text-color': '#f3f4f6',
+          'text-halo-color': '#111111',
+          'text-halo-width': 1.2,
           'text-halo-blur': 0.2,
         },
       },

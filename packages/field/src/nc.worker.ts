@@ -3,8 +3,8 @@ import { NetCDFReader } from 'netcdfjs'
 import type { BBox, FieldFrame } from './types'
 import { clipToBbox } from './clip'
 
-const U_NAMES = ['u', 'ugrd', 'uo', 'water_u', 'eastward_wind', 'eastward_sea_water_velocity']
-const V_NAMES = ['v', 'vgrd', 'vo', 'water_v', 'northward_wind', 'northward_sea_water_velocity']
+const U_NAMES = ['u10', 'u', 'U', 'ugrd', 'uo', 'water_u', 'eastward_wind', 'eastward_sea_water_velocity']
+const V_NAMES = ['v10', 'v', 'V', 'vgrd', 'vo', 'water_v', 'northward_wind', 'northward_sea_water_velocity']
 const T_NAMES = ['t', 'temp', 't2m', 'temperature', 'sst', 'thetao']
 const P_NAMES = ['tp', 'precip', 'rain', 'precipitation', 'pr']
 const LON_NAMES = ['lon', 'longitude', 'x', 'nav_lon']
@@ -13,7 +13,7 @@ const LAT_NAMES = ['lat', 'latitude', 'y', 'nav_lat']
 type Incoming = {
   buffer: ArrayBuffer
   filename: string
-  bbox: BBox
+  bbox?: BBox | null
 }
 
 function fail(code: string, message: string): never {
@@ -86,13 +86,10 @@ self.onmessage = (ev: MessageEvent<Incoming>) => {
     const { buffer, filename, bbox } = ev.data
     const kind = magicKind(buffer)
     if (kind === 'nc4') {
-      fail(
-        'NC4_UNSUPPORTED',
-        '检测到 NetCDF-4 / HDF5。当前 Worker 解码 NetCDF-3（CDF）。请用 nccopy 转 classic 或改用示例包。',
-      )
+      fail('NC4_UNSUPPORTED', '格式不支持（NetCDF-4 / HDF5）。请导出 JSON FieldFrame 或转为 NetCDF-3。')
     }
     if (kind === 'unknown') {
-      fail('BAD_FORMAT', `无法识别 ${filename || '文件'} 头魔数，需要 NetCDF-3（CDF\\x01/\\x02）。`)
+      fail('BAD_FORMAT', '格式不支持')
     }
 
     const reader = new NetCDFReader(buffer)
@@ -110,6 +107,9 @@ self.onmessage = (ev: MessageEvent<Incoming>) => {
 
     const nxGuess = findDimSize(reader, ['lon', 'longitude', 'x']) ?? 0
     const nyGuess = findDimSize(reader, ['lat', 'latitude', 'y']) ?? 0
+    if (!lonName && !latName && !nxGuess && !nyGuess) {
+      fail('MISSING_VARS', '无地理维')
+    }
 
     let u: Float32Array | undefined
     let v: Float32Array | undefined
@@ -181,7 +181,7 @@ self.onmessage = (ev: MessageEvent<Incoming>) => {
       },
     }
 
-    const clipped = clipToBbox(raw, bbox)
+    const clipped = bbox ? clipToBbox(raw, bbox) : raw
     const transfer: Transferable[] = [clipped.u.buffer, clipped.v.buffer]
     if (clipped.scalar) transfer.push(clipped.scalar.buffer)
     if (clipped.mask) transfer.push(clipped.mask.buffer)

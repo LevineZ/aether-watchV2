@@ -1,6 +1,6 @@
 /** FieldFrame 是全仓唯一场交换形状。禁止前端直读各源私有 JSON。 */
 
-export type FieldSource = 'demo' | 'live' | 'upload'
+export type FieldSource = 'demo' | 'live' | 'upload' | 'open-data'
 
 export type BBox = [west: number, south: number, east: number, north: number]
 
@@ -22,15 +22,23 @@ export type FieldFrame = {
   /** 1=ocean/valid, 0=land/invalid */
   mask?: Uint8Array
   kind?: FieldKind
-    meta: {
-      source: FieldSource
-      vars: string[]
-      units: string
-      fill?: number
-      /** DEMO 标：演示雨斑等，非实况。 */
-      demo?: boolean
-      note?: string
-    }
+  /** 标量窗，供色表；缺省由 LUT / stats 推断。 */
+  vmin?: number
+  vmax?: number
+  meta: {
+    source: FieldSource
+    vars: string[]
+    units: string
+    fill?: number
+    /** DEMO 标：演示雨斑等，非实况。 */
+    demo?: boolean
+    note?: string
+    lat_order?: 'ascending' | 'descending'
+    lon_order?: 'ascending' | '0-360'
+    level?: number | string | null
+    vmin?: number
+    vmax?: number
+  }
 }
 
 export type DemoPackId =
@@ -106,7 +114,7 @@ export const PAGE_KIND_PACK: Record<PageId, Record<FieldKind, DemoPackId | null>
   },
   desk: {
     wind: 'global/wind',
-    ocean: 'global/ocean',
+    ocean: null,
     temp: 'global/temp',
     precip: 'global/precip',
   },

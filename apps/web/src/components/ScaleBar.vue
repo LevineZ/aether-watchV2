@@ -14,29 +14,29 @@ const spec = computed(() => {
       return {
         unit: '°C',
         title: t.value.legendTemp,
-        bar: 'linear-gradient(180deg, #dc2626 0%, #f97316 22%, #facc15 42%, #4ade80 62%, #0ea5e9 80%, #4c1d95 100%)',
+        bar: 'linear-gradient(180deg, #6B0000 0%, #A50026 11%, #D73027 17%, #F46D43 22%, #FDAE61 28%, #FEE090 33%, #FFFFBF 39%, #E0F3F8 44%, #ABD9E9 50%, #74ADD1 56%, #4575B4 61%, #313695 67%, #1A1A6E 78%, #0D0D3D 89%, #05051A 100%)',
         ticks: ['50', '30', '10', '0', '−20', '−40'],
       }
     case 'precip':
       return {
         unit: 'mm',
         title: t.value.legendPrecip,
-        bar: 'linear-gradient(180deg, #fde047 0%, #4ade80 28%, #0f766e 58%, #0b1f17 100%)',
-        ticks: ['20', '5', '1', '0'],
+        bar: 'linear-gradient(180deg, #CC0000 0%, #FF6600 20%, #FFCC00 40%, #00CC66 55%, #0099FF 70%, #0066CC 85%, #003366 100%)',
+        ticks: ['50', '10', '2', '0'],
       }
     case 'ocean':
       return {
         unit: 'm/s',
         title: t.value.legendOcean,
-        bar: 'linear-gradient(180deg, #f0c14a 0%, #7ec8a0 45%, #0d3a4a 100%)',
+        bar: 'linear-gradient(180deg, #F0C14A 0%, #7EC8A0 45%, #0E4A5C 100%)',
         ticks: ['2', '1', '0'],
       }
     default:
       return {
         unit: 'm/s',
         title: t.value.legend,
-        bar: 'linear-gradient(180deg, #9f1239 0%, #ea580c 22%, #eab308 48%, #14b8a6 72%, #1e1b4b 100%)',
-        ticks: ['24', '12', '4', '0'],
+        bar: 'linear-gradient(180deg, #9E0142 0%, #D53E4F 16%, #F46D43 34%, #FDAE61 50%, #FEE08B 64%, #E6F598 76%, #ABDDA4 86%, #66C2A5 94%, #3288BD 100%)',
+        ticks: ['50', '25', '12', '0'],
       }
   }
 })
@@ -69,8 +69,8 @@ const spec = computed(() => {
 }
 .unit {
   font-size: 11px;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  color: var(--chrome-ink);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 .body {
   display: flex;
@@ -87,13 +87,13 @@ const spec = computed(() => {
   justify-content: space-between;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  color: #fff;
+  color: var(--chrome-ink);
   text-align: right;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 .bar {
   width: 10px;
   border-radius: 99px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 </style>

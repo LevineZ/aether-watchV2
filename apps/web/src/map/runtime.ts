@@ -1,9 +1,7 @@
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import type { ParticleLayer } from '@aether/particles'
 import type { BBox } from '@aether/field'
-import { applyBasemap, FIREFLY_BBOX, FIREFLY_MAX_ZOOM, REGIONAL_BBOX } from '@/map/basemap'
-
-const FIREFLY_MIN_FLOOR = 4.2
+import { applyBasemap, FIREFLY_BBOX, REGIONAL_BBOX } from '@/map/basemap'
 
 export { FIREFLY_BBOX, REGIONAL_BBOX }
 
@@ -35,7 +33,7 @@ export const CAMERAS = {
  * 预报台相机窗：东亚含日印，场绑全球包铺满视口。
  * 禁止再 fit china 数据矩形（那会在两侧露出底图）。
  */
-export const DESK_VIEW_BBOX: BBox = [68, 6, 152, 54]
+export const DESK_VIEW_BBOX: BBox = [73, 18, 135, 54]
 /** @deprecated 预报台不再裁数据窗；仅作旧名别名。 */
 export const DESK_FIELD_BBOX: BBox = DESK_VIEW_BBOX
 
@@ -68,22 +66,19 @@ export function lockBounds(_bbox: BBox | null, page: keyof typeof CAMERAS) {
     const m = mapRuntime.map
     if (!m) return
     try {
-      if (page === 'regional') {
+      if (page === 'regional' && _bbox) {
         if (projectionType(m) !== 'mercator') return
         if (m.isMoving()) {
           m.once('idle', apply)
           return
         }
-        const win = FIREFLY_BBOX
+        const pad = 6
         m.setMinZoom(0)
-        m.setMaxZoom(FIREFLY_MAX_ZOOM)
+        m.setMaxZoom(12)
         m.setMaxBounds([
-          [win[0], win[1]],
-          [win[2], win[3]],
+          [_bbox[0] - pad, Math.max(-85, _bbox[1] - pad)],
+          [_bbox[2] + pad, Math.min(85, _bbox[3] + pad)],
         ])
-        const span = Math.max(win[2] - win[0], win[3] - win[1])
-        const minZ = Math.max(FIREFLY_MIN_FLOOR, Math.log2(360 / Math.max(span, 1)) - 1.15)
-        m.setMinZoom(minZ)
       } else {
         m.setMinZoom(0)
         m.setMaxZoom(22)
@@ -122,13 +117,28 @@ export function setPlaceLabels(on: boolean) {
 
 let lastFitKey = ''
 
-export function fitFieldView(page: keyof typeof CAMERAS, _bbox?: BBox | null) {
+export function fitFieldView(page: keyof typeof CAMERAS, bbox?: BBox | null) {
   const map = mapRuntime.map
   if (!map) return
-  const key = page === 'desk' ? `desk:${DESK_VIEW_BBOX.join(',')}` : `${page}:${map.getContainer().clientWidth}`
+  const key =
+    page === 'desk'
+      ? `desk:${DESK_VIEW_BBOX.join(',')}`
+      : page === 'regional' && bbox
+        ? `regional:${bbox.join(',')}`
+        : `${page}:${map.getContainer().clientWidth}`
   if (key === lastFitKey) return
   lastFitKey = key
   try {
+    if (page === 'regional' && bbox) {
+      map.fitBounds(
+        [
+          [bbox[0], bbox[1]],
+          [bbox[2], bbox[3]],
+        ],
+        { padding: 28, duration: 520, pitch: 0, bearing: 0 },
+      )
+      return
+    }
     if (page === 'desk') {
       map.fitBounds(
         [

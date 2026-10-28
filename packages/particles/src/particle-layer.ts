@@ -8,6 +8,7 @@ import {
   type FieldKind,
 } from '@aether/field'
 import { PARTICLE_TEX, visualCount, type LodLevel } from './lod'
+import { CURTAIN_ALPHA, lutForKind, lutRangeForKind } from './lut'
 import { fieldViewUv } from './view-uv'
 import {
   BLIT_FS,
@@ -133,7 +134,8 @@ function fieldToRgba(frame: FieldFrame): {
   const uSpan = ur[1] - ur[0] || 1
   const vSpan = vr[1] - vr[0] || 1
   const sSpan = sr[1] - sr[0] || 1
-  const [speedLo, speedHi] = kind === 'wind' || kind === 'ocean' ? speedPercentileRange(frame) : [0, 1]
+  const lutRange = lutRangeForKind(kind)
+  const [speedLo, speedHi] = kind === 'ocean' ? speedPercentileRange(frame) : lutRange
   const soft = oceanMask && frame.mask ? softenOceanMask(frame.mask, frame.nx, frame.ny) : null
   for (let i = 0; i < n; i++) {
     const i4 = i * 4
@@ -149,16 +151,20 @@ function fieldToRgba(frame: FieldFrame): {
     }
     data[i4] = finite ? Math.max(0, Math.min(255, Math.round(((u - ur[0]) / uSpan) * 255))) : 0
     data[i4 + 1] = finite ? Math.max(0, Math.min(255, Math.round(((v - vr[0]) / vSpan) * 255))) : 0
-    data[i4 + 2] = aliveByte
     let packedScalar = 0
-    if (kind === 'wind' || kind === 'ocean') {
-      // Same-pack |UV| curtain, field p05–p95. Never a second (temp) pack; never /24.
+    if (kind === 'wind') {
+      packedScalar = finite ? unitInterval(Math.hypot(u, v), lutRange[0], lutRange[1]) : 0
+    } else if (kind === 'ocean') {
       packedScalar = finite ? unitInterval(Math.hypot(u, v), speedLo, speedHi) : 0
     } else if (frame.scalar) {
-      packedScalar = Number.isFinite(frame.scalar[i]) ? (frame.scalar[i] - sr[0]) / sSpan : 0
+      const s = frame.scalar[i]
+      const ok = Number.isFinite(s)
+      packedScalar = ok ? unitInterval(s, lutRange[0], lutRange[1]) : 0
+      if (!ok) aliveByte = 0
     } else {
       packedScalar = finite ? Math.hypot(u, v) / 20 : 0
     }
+    data[i4 + 2] = aliveByte
     data[i4 + 3] = Math.max(0, Math.min(255, Math.round(packedScalar * 255)))
   }
   if (oceanMask) {
@@ -180,13 +186,14 @@ function fieldToRgba(frame: FieldFrame): {
  * LINEAR trail + fade≈0.995 turns 1px stamps into long silk; high drop / idle reseed = 乱窜.
  */
 export const ADVECT_STEP = 0.0024
-export const WIND_SPEED_GLOBAL = 0.22
-export const WIND_SPEED_DESK = 0.085
+/** Spec: 全球/大范围 0.18，区域放大 0.09。 */
+export const WIND_SPEED_GLOBAL = 0.18
+export const WIND_SPEED_DESK = 0.09
 export const TRAIL_FADE = 0.995
 export const TRAIL_GAIN = 0.9
-/** Screen pixels per frame at |vel| = speedRef. Keep ≤ point size so silk does not dash. */
-export const TRAIL_TARGET_PX = 1.05
-export const OCEAN_TARGET_PX = 1.15
+/** Screen pixels per frame at |vel| = speedRef (global 0.18). Desk scales with 0.09/0.18. */
+export const TRAIL_TARGET_PX = 1.15
+export const OCEAN_TARGET_PX = 1.05
 /** @deprecated 用 WIND_SPEED_DESK / WIND_SPEED_GLOBAL */
 export const WIND_DESK_SPEED_SCALE = WIND_SPEED_DESK / WIND_SPEED_GLOBAL
 
@@ -216,9 +223,9 @@ export const KIND_LOOK: Record<
     style: 'wind-fog',
     overlay: 'wind',
     speed: WIND_SPEED_GLOBAL,
-    drop: 0.00008,
-    size: 2.05,
-    color: [0.94, 0.97, 1.0, 0.4],
+    drop: 0.018,
+    size: 1.85,
+    color: [0.91, 0.957, 0.969, 0.72],
     ribbonDeg: 5.8,
     ribbonPx: 0.72,
     uvScale: 1,
@@ -228,9 +235,9 @@ export const KIND_LOOK: Record<
     style: 'currents',
     overlay: 'ocean',
     speed: 0.11,
-    drop: 0.00016,
-    size: 1.3,
-    color: [0.68, 0.9, 0.98, 0.28],
+    drop: 0.012,
+    size: 1.45,
+    color: [0.85, 0.94, 0.96, 0.42],
     ribbonDeg: 3.2,
     ribbonPx: 7.2,
     uvScale: 1,
@@ -251,10 +258,10 @@ export const KIND_LOOK: Record<
   precip: {
     style: 'currents',
     overlay: 'precip',
-    speed: 0.22,
-    drop: 0.014,
+    speed: 0,
+    drop: 0.0016,
     size: 1.25,
-    color: [0.72, 0.90, 1.0, 0.7],
+    color: [0.91, 0.957, 0.969, 0],
     ribbonDeg: 1.15,
     ribbonPx: 1.35,
     uvScale: 0,
@@ -292,6 +299,7 @@ export class ParticleLayer {
   private trail0: WebGLTexture | null = null
   private trail1: WebGLTexture | null = null
   private trailFbo: WebGLFramebuffer | null = null
+  private lutTex: WebGLTexture | null = null
   private trailW = 0
   private trailH = 0
   private vao: WebGLVertexArrayObject | null = null
@@ -320,7 +328,7 @@ export class ParticleLayer {
   private size = KIND_LOOK.wind.size
   private color: [number, number, number, number] = KIND_LOOK.wind.color
   private drop = KIND_LOOK.wind.drop
-  private density = 0.48
+  private density = 1
   private ribbonDeg = KIND_LOOK.wind.ribbonDeg
   private ribbonPx = KIND_LOOK.wind.ribbonPx
   private advecting = true
@@ -347,6 +355,7 @@ export class ParticleLayer {
     this.scalarProg = program(g, QUAD_GEO_VS, SCALAR_FS)
     this.fadeProg = program(g, QUAD_VS, FADE_FS)
     this.blitProg = program(g, QUAD_VS, BLIT_FS)
+    this.lutTex = createRgbaTex(g, 256, 1, lutForKind('wind'), g.LINEAR)
     this.trailFbo = g.createFramebuffer()
     this.quadBuf = g.createBuffer()
     g.bindBuffer(g.ARRAY_BUFFER, this.quadBuf)
@@ -407,6 +416,7 @@ export class ParticleLayer {
       g.deleteTexture(this.windTex)
       g.deleteTexture(this.trail0)
       g.deleteTexture(this.trail1)
+      g.deleteTexture(this.lutTex)
       g.deleteFramebuffer(this.fbo)
       g.deleteFramebuffer(this.trailFbo)
     }
@@ -415,7 +425,7 @@ export class ParticleLayer {
   }
 
   setLod(level: LodLevel) {
-    if (this.kind === 'temp') {
+    if (this.kind === 'temp' || this.kind === 'precip') {
       this.advecting = false
       this.lod = 'paused'
       this.map?.triggerRepaint()
@@ -445,7 +455,7 @@ export class ParticleLayer {
   }
 
   resume() {
-    if (this.kind === 'temp') {
+    if (this.kind === 'temp' || this.kind === 'precip') {
       this.advecting = false
       this.lod = 'paused'
       this.map?.triggerRepaint()
@@ -453,7 +463,6 @@ export class ParticleLayer {
     }
     this.advecting = true
     this.lod = 'peak'
-    this.pendingReseed = true
     this.map?.triggerRepaint()
   }
 
@@ -475,12 +484,13 @@ export class ParticleLayer {
     this.ribbonPx = look.ribbonPx
     this.uvScale = look.uvScale
     this.pool = look.pool
+    this.uploadLut(kind)
     this.clearTrail()
     const lonSpan = Math.abs(this.bbox[2] - this.bbox[0])
     this.wrap = lonSpan > 350 ? 1 : 0
     this.syncViewWindow()
     this.syncRibbonFromView()
-    if (kind === 'temp') {
+    if (kind === 'temp' || kind === 'precip') {
       this.advecting = false
       this.lod = 'paused'
     } else if (this.lod === 'paused') {
@@ -517,11 +527,11 @@ export class ParticleLayer {
   }
 
   showParticles(): boolean {
-    return this.kind !== 'temp'
+    return this.kind === 'wind' || this.kind === 'ocean'
   }
 
   drawCount(): number {
-    if (this.kind === 'temp') return 0
+    if (!this.showParticles()) return 0
     return visualCount({
       ocean: this.kind === 'ocean',
       precip: this.kind === 'precip',
@@ -588,7 +598,7 @@ export class ParticleLayer {
       this.pendingReseed = false
     }
     const moving = !!this.map?.isMoving()
-    if (this.kind !== 'temp' && !moving) this.advecting = true
+    if (this.showParticles() && !moving) this.advecting = true
     if (!this.didPrerender && this.showParticles() && this.advecting && !moving) {
       this.updateParticles(g)
     }
@@ -614,16 +624,11 @@ export class ParticleLayer {
 
     const particlesOn = this.showParticles()
     const count = particlesOn ? this.drawCount() : 0
-    const trailKind = this.kind === 'wind' || this.kind === 'ocean'
-    if (particlesOn && count > 0 && trailKind) {
+    if (particlesOn && count > 0) {
       this.stampTrail(g, matrix, count, prevFb, prevVp)
       g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
       g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
       this.blitTrail(g)
-    } else if (particlesOn && count > 0 && this.kind === 'precip') {
-      g.bindFramebuffer(g.FRAMEBUFFER, prevFb)
-      g.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
-      this.drawRibbons(g, matrix, count)
     }
 
     if (prevVao) g.bindVertexArray(prevVao)
@@ -648,12 +653,20 @@ export class ParticleLayer {
     this.applyKindLook(inferKind(frame))
   }
 
+  private uploadLut(kind: FieldKind) {
+    const g = this.gl
+    if (!g || !this.lutTex) return
+    g.bindTexture(g.TEXTURE_2D, this.lutTex)
+    g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, 256, 1, 0, g.RGBA, g.UNSIGNED_BYTE, lutForKind(kind))
+  }
+
   /** UV delta that moves a p95 particle ~TRAIL_TARGET_PX on the current view. */
   private trailStepUv(): number {
     const canvas = this.map?.getCanvas()
     const w = Math.max(1, canvas?.width ?? 1440)
     const du = Math.max(1e-4, this.viewUv[2] - this.viewUv[0])
-    const target = this.kind === 'ocean' ? OCEAN_TARGET_PX : TRAIL_TARGET_PX
+    const speedScale = this.speed / WIND_SPEED_GLOBAL
+    const target = this.kind === 'ocean' ? OCEAN_TARGET_PX : TRAIL_TARGET_PX * speedScale
     return target / (w / du)
   }
 
@@ -980,6 +993,16 @@ export class ParticleLayer {
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_hatch'), 0)
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_wrap'), this.wrap)
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_time'), performance.now() * 0.001)
+    const curtain =
+      this.kind === 'temp'
+        ? CURTAIN_ALPHA.temp
+        : this.kind === 'ocean'
+          ? CURTAIN_ALPHA.ocean
+          : CURTAIN_ALPHA.wind
+    g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_alpha'), curtain)
+    g.activeTexture(g.TEXTURE1)
+    g.bindTexture(g.TEXTURE_2D, this.lutTex)
+    g.uniform1i(g.getUniformLocation(this.scalarProg, 'u_lut'), 1)
     const shifts = this.wrap ? [-360, 0, 360] : [0]
     for (const shift of shifts) {
       g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_lon_shift'), shift)

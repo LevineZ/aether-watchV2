@@ -35,70 +35,14 @@
         ]
       }
     },
-    {
-      "type": "Feature",
-      "properties": { "kind": "dot" },
-      "geometry": { "type": "Point", "coordinates": [122.4, 27.8] }
-    },
-    {
-      "type": "Feature",
-      "properties": { "kind": "dot" },
-      "geometry": { "type": "Point", "coordinates": [123.2, 26.6] }
-    },
-    {
-      "type": "Feature",
-      "properties": { "kind": "dot" },
-      "geometry": { "type": "Point", "coordinates": [124.1, 25.4] }
-    },
-    {
-      "type": "Feature",
-      "properties": { "kind": "dot" },
-      "geometry": { "type": "Point", "coordinates": [124.9, 24.2] }
-    },
-    {
-      "type": "Feature",
-      "properties": { "kind": "dot" },
-      "geometry": { "type": "Point", "coordinates": [126.9, 22.0] }
-    },
-    {
-      "type": "Feature",
-      "properties": { "kind": "dot" },
-      "geometry": { "type": "Point", "coordinates": [128.1, 21.0] }
-    },
-    {
-      "type": "Feature",
-      "properties": { "kind": "dot" },
-      "geometry": { "type": "Point", "coordinates": [130.8, 19.2] }
-    },
-    {
-      "type": "Feature",
-      "properties": { "kind": "dot" },
-      "geometry": { "type": "Point", "coordinates": [132.2, 18.2] }
-    },
-    {
-      "type": "Feature",
-      "properties": { "kind": "dot" },
-      "geometry": { "type": "Point", "coordinates": [127.6, 23.4] }
-    },
-    {
-      "type": "Feature",
-      "properties": { "kind": "dot" },
-      "geometry": { "type": "Point", "coordinates": [129.2, 22.6] }
-    },
-    {
-      "type": "Feature",
-      "properties": { "kind": "dot" },
-      "geometry": { "type": "Point", "coordinates": [130.6, 21.4] }
-    },
-    {
-      "type": "Feature",
-      "properties": { "kind": "center", "name": "青岚" },
-      "geometry": { "type": "Point", "coordinates": [125.8, 23.1] }
-    },
-    {
-      "type": "Feature",
-      "properties": { "kind": "mark", "name": "霜澜" },
-      "geometry": { "type": "Point", "coordinates": [129.4, 20.1] }
-    }
+    { "type": "Feature", "properties": { "kind": "dot", "phase": "past" }, "geometry": { "type": "Point", "coordinates": [122.4, 27.8] } },
+    { "type": "Feature", "properties": { "kind": "dot", "phase": "past" }, "geometry": { "type": "Point", "coordinates": [123.2, 26.6] } },
+    { "type": "Feature", "properties": { "kind": "dot", "phase": "past" }, "geometry": { "type": "Point", "coordinates": [124.1, 25.4] } },
+    { "type": "Feature", "properties": { "kind": "dot", "phase": "past" }, "geometry": { "type": "Point", "coordinates": [124.9, 24.2] } },
+    { "type": "Feature", "properties": { "kind": "dot", "phase": "fcst" }, "geometry": { "type": "Point", "coordinates": [127.6, 23.4] } },
+    { "type": "Feature", "properties": { "kind": "dot", "phase": "fcst" }, "geometry": { "type": "Point", "coordinates": [129.2, 22.6] } },
+    { "type": "Feature", "properties": { "kind": "dot", "phase": "fcst" }, "geometry": { "type": "Point", "coordinates": [130.6, 21.4] } },
+    { "type": "Feature", "properties": { "kind": "center", "name": "青岚", "phase": "now" }, "geometry": { "type": "Point", "coordinates": [125.8, 23.1] } },
+    { "type": "Feature", "properties": { "kind": "mark", "name": "霜澜", "phase": "fcst" }, "geometry": { "type": "Point", "coordinates": [129.4, 20.1] } }
   ]
 }

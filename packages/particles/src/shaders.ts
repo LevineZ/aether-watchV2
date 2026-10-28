@@ -153,6 +153,7 @@ uniform float u_size;
 uniform float u_count;
 uniform float u_wrap;
 uniform float u_kind;
+uniform float u_speed_ref;
 out float v_speed;
 out float v_alive;
 out float v_edge;
@@ -180,7 +181,8 @@ void main() {
   v_edge = min(ex, ey);
   vec2 lonlat = fieldLonLat(pos, u_bbox);
   gl_Position = projectTile(mercator(lonlat));
-  gl_PointSize = u_size;
+  float nrm = clamp(v_speed / max(u_speed_ref, 0.4), 0.0, 1.0);
+  gl_PointSize = u_size * mix(0.72, 1.55, nrm);
 }
 `
 }
@@ -420,44 +422,35 @@ export const QUAD_GEO_VS = makeQuadGeoVS(FALLBACK_PRELUDE, '')
 export const SCALAR_FS = `#version 300 es
 precision highp float;
 uniform sampler2D u_wind;
+uniform sampler2D u_lut;
 uniform float u_mode;
 uniform float u_hatch;
 uniform float u_wrap;
 uniform float u_time;
+uniform float u_alpha;
 in vec2 v_uv;
 out vec4 fragColor;
-${MIX7}
 
 void main() {
   vec4 w = texture(u_wind, v_uv);
   float t = w.a;
   float mask = w.b;
-  vec3 rgb;
+  vec4 lut = texture(u_lut, vec2(clamp(t, 0.0, 1.0), 0.5));
+  vec3 rgb = lut.rgb;
   float alpha;
+  if (mask < 0.02) {
+    fragColor = vec4(0.0);
+    return;
+  }
   if (u_mode < 0.5) {
-    rgb = mix7(t,
-      vec3(0.298, 0.114, 0.584),
-      vec3(0.118, 0.251, 0.686),
-      vec3(0.055, 0.647, 0.914),
-      vec3(0.290, 0.871, 0.502),
-      vec3(0.980, 0.800, 0.082),
-      vec3(0.976, 0.451, 0.086),
-      vec3(0.863, 0.149, 0.149));
-    alpha = 0.38;
+    alpha = u_alpha;
   } else if (u_mode < 1.5) {
-    float wet = smoothstep(0.02, 0.72, t);
-    vec3 dry = vec3(0.04, 0.09, 0.10);
-    vec3 mid = vec3(0.07, 0.42, 0.38);
-    vec3 glow = vec3(0.78, 0.96, 0.62);
-    vec3 hot = vec3(0.98, 0.78, 0.28);
-    rgb = mix(mix(dry, mid, clamp(wet * 1.4, 0.0, 1.0)), mix(glow, hot, smoothstep(0.55, 1.0, t)), wet);
-    alpha = mix(0.04, 0.42, wet);
+    float wet = smoothstep(0.0, 0.08, t);
+    alpha = mix(0.04, 0.62, wet);
   } else if (u_mode < 2.5) {
-    rgb = windRamp(t);
-    alpha = 0.28;
+    alpha = u_alpha;
   } else {
-    rgb = oceanRamp(t);
-    alpha = 0.28 * mask;
+    alpha = u_alpha * mask;
   }
   fragColor = vec4(rgb * alpha, alpha);
 }

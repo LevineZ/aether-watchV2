@@ -32,8 +32,9 @@ function zoomBy(delta: number) {
   width: 40px;
   height: 40px;
   border-radius: 99px;
-  background: #111;
-  color: #fff;
+  background: var(--chrome);
+  color: var(--chrome-ink);
+  border: 1px solid var(--panel-border);
   font-size: 18px;
   line-height: 1;
   box-shadow: var(--shadow-pill);

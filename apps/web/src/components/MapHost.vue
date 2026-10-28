@@ -42,7 +42,7 @@ onMounted(() => {
     fadeDuration: 0,
     maxPitch: 0,
     renderWorldCopies: false,
-    canvasContextAttributes: { antialias: true, alpha: true, preserveDrawingBuffer: false },
+    canvasContextAttributes: { antialias: true, alpha: true, preserveDrawingBuffer: true },
   })
   mapRuntime.map = map
   const particles = new ParticleLayer({ id: 'aether-particles' })

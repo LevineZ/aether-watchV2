@@ -1,121 +1,79 @@
 ---
-version: light-repo-gate
+version: ventusky-lock
 name: AetherWatch-design
-description: "v0.11 浅色白胶囊：色场铺满，白发丝岸线，左彩点要素轨，右竖色阶，底黑播放钮。废弃深色三栏指挥大屏与深色 Ventusky 壳。"
+description: "Ventusky 公开观感硬锁：暗色细岸底图、灰度场+前端 LUT 色幕、GPGPU 白青风丝。壳从底图暗气质派生，禁止自创视觉世界覆盖色幕连续性与粒子气质。"
 colors:
-  canvas: "#0b0f0c"
-  chrome: "#ffffff"
-  chrome-ink: "#111111"
-  chrome-muted: "#6b7280"
-  pill-on: "#111111"
-  pill-on-ink: "#ffffff"
-  dot-wind: "#3b82f6"
-  dot-temp: "#f97316"
-  dot-precip: "#2dd4bf"
-  dot-ocean: "#7dd3fc"
-  coast: "#ffffff"
-  ink: "#111111"
-  primary: "#111111"
-  on-primary: "#ffffff"
-  semantic-ok: "#22c55e"
+  canvas: "#0d0d0d"
+  chrome: "rgba(16,16,18,0.82)"
+  chrome-ink: "#e8eaed"
+  chrome-muted: "#9aa0a6"
+  pill-on: "#3ec6c8"
+  pill-on-ink: "#081314"
+  primary: "#3ec6c8"
+  on-primary: "#081314"
+  land: "#1a1a1a"
+  ocean: "#0d0d0d"
+  coast: "#9aa0a6"
+  particle: "#E8F4F8"
 typography:
-  display:
-    fontFamily: "Inter, SF Pro, PingFang SC, Microsoft YaHei, sans-serif"
-    fontSize: 28px
-    fontWeight: 600
-  title:
-    fontFamily: "Inter, SF Pro, PingFang SC, sans-serif"
-    fontSize: 18px
-    fontWeight: 600
   body:
-    fontFamily: "Inter, SF Pro, PingFang SC, sans-serif"
+    fontFamily: "Inter, SF Pro, PingFang SC, Microsoft YaHei, sans-serif"
     fontSize: 14px
     fontWeight: 400
-  caption:
-    fontFamily: "Inter, SF Pro, PingFang SC, sans-serif"
-    fontSize: 12px
 rounded:
-  lg: 28px
+  lg: 20px
   pill: 9999px
-spacing:
-  xs: 8px
-  sm: 12px
-  md: 16px
-  lg: 24px
-components:
-  top-nav:
-    height: 40px
-    backgroundColor: "{colors.chrome}"
-    textColor: "{colors.chrome-ink}"
-  button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.on-primary}"
-    rounded: "{rounded.pill}"
 ---
 
-# AetherWatch DESIGN.md（v0.11 浅色白胶囊）
+# AetherWatch DESIGN.md（Ventusky lock）
 
-> **壳层定稿**：白胶囊浮在色场上。选中条 / 播放 / 缩放为黑圆。岸线白发丝。城市注记带气温。  
-> **废弃**：深色三栏指挥大屏、墨蓝 `#0a1628` + 克制青 `#5ac8e6` 的 Ventusky 克隆壳。  
-> **仍禁止**：刮 Ventusky / Windy / 高德天气瓦片。场数据用自己的 FieldFrame。
+> **视觉层**：对标 Ventusky 公开观感。底图暗、色幕连续、风丝细白。  
+> **反例**：v0.11 浅色白胶囊、鲜艳矢量填充、卫星影像、粗边界、霓虹粒子、自创玻璃拟态。  
+> **仍禁止**：刮 Ventusky / Windy / 高德 *天气* 瓦片。场数据只用 FieldFrame。
 
 ## 1. Visual Theme
 
-- 气质：浅色天气图产品。地图铺满，壳是白胶囊，不预留侧栏。
-- 对标：仓库内 v0.11 四张锁版（全球气温 / 全球降雨 DEMO / 区域场空态 / 东亚风+台风）。
-- 反例：旧 320|视口|320 指挥大屏；刚废弃的深色搜索条 + 青描边壳。
+- 气质：暗色天气图。地图铺满，壳是深灰半透明胶囊，不预留侧栏。
+- 底图：Carto Dark Matter `dark_nolabels`（陆地 #1a1a1a–#222，海洋 #0d0d0d–#111，细浅岸线）。瓦片自带岸线，不再叠自绘岸线。
+- 强调色：中性青 `#3ec6c8`。禁止额外光晕、渐变边框、玻璃拟态。
 
-## 2. Color Palette
+## 2. 色幕（灰度场 + 256×1 LUT）
 
-| Token | Hex | 用途 |
-|-------|-----|------|
-| chrome | `#ffffff` | 胶囊、卡片、日期 pill |
-| chrome-ink | `#111111` | 字、选中条、播放钮、+/− |
-| dot-wind / temp / precip / ocean | `#3b82f6` / `#f97316` / `#2dd4bf` / `#7dd3fc` | 左轨彩点 |
-| coast | `#ffffff` | NE110m / OMT 岸线与国界 |
-| semantic-ok | `#22c55e` | 「显示」绿点 |
+标量先归一化进单通道，fragment 采样 LUT。整体 alpha 0.45–0.65。
 
-**禁止**：壳层再用 `#5ac8e6` 作主色、深色玻璃顶栏、彩虹 UI 控件。
+| 场 | 物理窗 | 备注 |
+|----|--------|------|
+| 气温 | −40…50 °C | 锁死节点，线性插值 |
+| 风速 | 0…50 m/s | \|UV\| |
+| 降雨 | 0…50 mm | 干区 alpha 0.02–0.05，禁止整片全透明 |
+| 洋流 | 0…2 m/s | mask=0 陆地完全透明 |
 
-## 3. 布局门禁
+气温/降雨：粒子 paused，渲染 alpha=0，不许白丝。
 
-地图占满视口。壳是浮层。
+## 3. 风场粒子
 
-- 左上：一条白胶囊 `AetherWatch v0.11` + 全球 / 预报台 / 区域场 / 关于（选中黑 pill）
-- 右上：白圆「中」/ 齿轮 / 「显示」绿点
-- 左中：彩点要素（风蓝 / 气温橙 / 降雨青 / 洋流浅蓝），选中黑胶囊；其下 `2.0 m`（全球）或 `10.0 m`、图层、时次、导出；上传仅区域场
-- 右中：竖色阶（气温 50…−40）
-- 右下：黑圆 + / −
-- 底：黑圆 ⏮ ▶ + 白胶囊「今天 · mm/dd」+ 白细轴与白旋钮
-- 区域场空态：居中白卡「上传自己的 NC，当场见效果」，双 CTA「上传文件」「加载示例」；未上传不绑演示场
-- 全球降雨：右上白胶囊 `DEMO·墨湾/印尼雨斑`
-- 预报台：东亚窗 + 白虚线紫点台风轨（青岚 / 霜澜）
+- GPGPU 双缓冲。全球速度系数 0.18，区域 0.09。
+- N ≈ 360k / zoom²，峰值夹 400k。
+- 颜色 `#E8F4F8`，拖尾随风速变长。每帧随机重置 1%–3%。
+- 屏空间 LINEAR 拖影，fade≈0.995。
 
-## 4. 场效果锁
+## 4. 布局
 
-| 场 | 锁版 |
-|----|------|
-| 气温 | 半透明热幕（约 0.38），岸线/注记可读；无粒子 |
-| 降雨 | 干处近透明，湿处半透明亮斑 + 下落雨丝；墨湾 / 印尼为 DEMO |
-| 风 | 半透明风速色幕（约 0.28）+ **白色屏空间拖影**（稀、慢、连贯）；台风只做壳叠 |
-| 洋流 | 半透明海幕（约 0.28×mask）+ 青色拖影；ocean mask 0–255；陆地不盖色 |
+- 顶栏四场景：全球 · 预报台 · 区域场 · 关于。禁止第五个。
+- 左：要素芯片 风/气温/降雨/洋流；时次/高度无维时灰显「本包无时次」。
+- 上传仅区域场/NCView。全球/预报台无「上传」字样。
+- 预报台：中国窗 lon 73–135, lat 18–54；底时间轴更粗；角标「示例数据」；洋流灰显。
+- 区域场空态：中央卡，实心青「上传并演示」+ 幽灵「加载示例」。
+- 单击读数：白 pill；缺测不编数。
+- 台风：past `#b44dff` / now `#ff2d3d` / fcst `#3ec6ff`。
 
-不刮第三方雷达 / 风场瓦片。Global 包必须 721×361 全球窗（O1）。
-
-## 5. 粒子 / GPU
-
-- 观感峰值 30万–60万；拖动 / 缩放 / 切 Tab 降档或 pause
-- 风/洋流：屏空间拖影（LINEAR + fade≈0.995），拖动清空；粒子宜稀。降雨为下落雨丝，不走拖影。
-- 切 Tab 保留 canvas，禁止拆球
-
-## 6. Agent Prompt
+## 5. Agent Prompt
 
 ```
-按 v0.11 浅色白胶囊做壳（不要深色 Ventusky 壳，不要三栏大屏）：
-- 白 pill + 黑选中 / 黑播放 / 黑 +−
-- 白发丝岸线，城市名+气温
-- 左彩点要素轨 / 右竖色阶 / 底时次轴
-- 区域场空态居中双 CTA；未上传不绑场
-- 台风白虚线+紫点（青岚/霜澜）
+按 Ventusky 公开观感做气象演示站（不要 v0.11 白胶囊，不要自创霓虹）：
+- 暗色细岸底图 + LUT 半透色幕 + 细白 GPGPU 风丝
+- 四场景：全球 / 预报台 / 区域场 / 关于
+- 上传只在区域场；预报台中国窗、洋流灰显
+- FieldFrame lat 升序、lon −180–180
 - 不刮第三方天气瓦片
 ```

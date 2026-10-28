@@ -4,9 +4,11 @@ import type { MapMouseEvent } from 'maplibre-gl'
 import { useFieldStore } from '@/stores/field'
 import { useUiStore } from '@/stores/ui'
 import { mapRuntime } from '@/map/runtime'
+import { useT } from '@/i18n'
 
 const field = useFieldStore()
 const ui = useUiStore()
+const t = useT()
 const text = ref('')
 const x = ref(0)
 const y = ref(0)
@@ -22,21 +24,31 @@ function sample(lon: number, lat: number): string {
   const ix = Math.round(Math.max(0, Math.min(frame.nx - 1, gx)))
   const iy = Math.round(Math.max(0, Math.min(frame.ny - 1, gy)))
   const i = iy * frame.nx + ix
-  if (ui.kind === 'temp' && frame.scalar) return `${Math.round(frame.scalar[i])}°C`
-  if (ui.kind === 'precip' && frame.scalar) return `${frame.scalar[i].toFixed(1)} mm`
-  return `${Math.hypot(frame.u[i] ?? 0, frame.v[i] ?? 0).toFixed(1)} m/s`
+  if (ui.kind === 'ocean' && frame.mask && frame.mask[i] === 0) return t.value.missing
+  if (ui.kind === 'temp' && frame.scalar) {
+    const v = frame.scalar[i]
+    return Number.isFinite(v) ? `${Math.round(v)}°C` : t.value.missing
+  }
+  if (ui.kind === 'precip' && frame.scalar) {
+    const v = frame.scalar[i]
+    return Number.isFinite(v) ? `${v.toFixed(1)} mm` : t.value.missing
+  }
+  const u = frame.u[i]
+  const v = frame.v[i]
+  if (!Number.isFinite(u) || !Number.isFinite(v)) return t.value.missing
+  return `${Math.hypot(u, v).toFixed(1)} m/s`
 }
 
-function onMove(ev: MapMouseEvent) {
+function onClick(ev: MapMouseEvent) {
+  if (ui.page === 'about' || !ui.labelsOn) {
+    on.value = false
+    return
+  }
   const next = sample(ev.lngLat.lng, ev.lngLat.lat)
   text.value = next
   x.value = ev.point.x
   y.value = ev.point.y
-  on.value = Boolean(next) && ui.labelsOn && ui.page !== 'about'
-}
-
-function onLeave() {
-  on.value = false
+  on.value = Boolean(next)
 }
 
 let timer = 0
@@ -48,17 +60,14 @@ onMounted(() => {
       timer = window.setTimeout(bind, 160)
       return
     }
-    map.on('mousemove', onMove)
-    map.on('mouseout', onLeave)
+    map.on('click', onClick)
   }
   bind()
 })
 
 onBeforeUnmount(() => {
   window.clearTimeout(timer)
-  const map = mapRuntime.map
-  map?.off('mousemove', onMove)
-  map?.off('mouseout', onLeave)
+  mapRuntime.map?.off('click', onClick)
 })
 </script>
 
@@ -82,6 +91,6 @@ onBeforeUnmount(() => {
   border-radius: 9999px;
   font-size: 13px;
   font-weight: 650;
-  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
 }
 </style>

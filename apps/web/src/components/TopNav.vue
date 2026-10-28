@@ -25,7 +25,6 @@ function go(to: string) {
   <header class="nav">
     <div class="brand pill">
       <span class="name">{{ t.brand }}</span>
-      <span class="ver">v0.11</span>
       <nav class="tabs" aria-label="pages">
         <button
           v-for="tab in tabs"
@@ -41,12 +40,6 @@ function go(to: string) {
     </div>
     <div class="right">
       <button class="round pill" type="button" @click="ui.toggleLocale()">{{ t.langZh }}</button>
-      <button class="round pill" type="button" :title="t.settings" @click="ui.uploadOpen = ui.page === 'regional'">
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <circle cx="10" cy="10" r="2.2" />
-          <path d="M10 3.4v1.6M10 15v1.6M3.4 10h1.6M15 10h1.6M5.4 5.4l1.1 1.1M13.5 13.5l1.1 1.1M5.4 14.6l1.1-1.1M13.5 6.5l1.1-1.1" />
-        </svg>
-      </button>
       <button class="round pill show" type="button" :title="t.display" @click="ui.toggleLabels()">
         <span class="live" :class="{ off: !ui.labelsOn }" />
         {{ t.display }}
@@ -78,13 +71,10 @@ function go(to: string) {
   padding: 3px 4px 3px 14px;
 }
 .name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 650;
-}
-.ver {
-  font-size: 11px;
-  color: var(--chrome-muted);
-  margin-right: 4px;
+  letter-spacing: 0.02em;
+  color: var(--chrome-ink);
 }
 .tabs {
   display: flex;
@@ -99,8 +89,8 @@ function go(to: string) {
   font-size: 13px;
 }
 .tab.on {
-  background: #111;
-  color: #fff;
+  background: var(--pill-on);
+  color: var(--pill-on-ink);
   font-weight: 600;
 }
 .right {
@@ -116,14 +106,6 @@ function go(to: string) {
   justify-content: center;
   font-size: 13px;
 }
-.round svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: #111;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-}
 .show {
   gap: 6px;
 }
@@ -131,13 +113,12 @@ function go(to: string) {
   width: 7px;
   height: 7px;
   border-radius: 99px;
-  background: #22c55e;
+  background: var(--semantic-ok);
 }
 .live.off {
-  background: #d1d5db;
+  background: #4b5563;
 }
 @media (max-width: 720px) {
-  .ver,
   .show {
     display: none;
   }

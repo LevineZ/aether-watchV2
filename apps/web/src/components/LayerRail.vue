@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import { useUiStore } from '@/stores/ui'
 import { useFieldStore } from '@/stores/field'
 import { useT } from '@/i18n'
+import { mapRuntime } from '@/map/runtime'
 
 const ui = useUiStore()
 const field = useFieldStore()
@@ -17,23 +18,24 @@ const layers: { id: FieldKind; key: 'chipWind' | 'chipOcean' | 'chipTemp' | 'chi
 ]
 
 const heightLabel = computed(() => (ui.page === 'global' ? '2.0 m' : '10.0 m'))
+const hoursDisabled = computed(() => !field.frame?.time || ui.page !== 'desk')
 
 function pick(kind: FieldKind) {
   if (field.isKindMissing(ui.page, kind)) return
   void field.selectKind(kind)
 }
 
-function download() {
-  const frame = field.frame
-  const blob = new Blob(
-    [JSON.stringify({ note: '示例数据 · FieldFrame meta only', nx: frame?.nx, ny: frame?.ny, bbox: frame?.bbox, time: frame?.time, meta: frame?.meta }, null, 2)],
-    { type: 'application/json' },
-  )
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = 'aether-field-meta.json'
-  a.click()
-  URL.revokeObjectURL(a.href)
+function snapshotPng() {
+  const canvas = mapRuntime.map?.getCanvas()
+  if (!canvas) return
+  canvas.toBlob((blob) => {
+    if (!blob) return
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `aether-${ui.page}-${ui.kind}.png`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }, 'image/png')
 }
 </script>
 
@@ -46,6 +48,7 @@ function download() {
         class="row"
         :class="{ on: ui.kind === c.id, missing: field.isKindMissing(ui.page, c.id) }"
         type="button"
+        :title="field.isKindMissing(ui.page, c.id) ? t.chipMissing : undefined"
         @click="pick(c.id)"
       >
         <span class="dot" :style="{ background: c.dot }" />
@@ -53,25 +56,23 @@ function download() {
       </button>
     </div>
     <div class="tools">
-      <button class="chip on" type="button" :title="t.altitude">
+      <button class="chip muted" type="button" disabled :title="t.noLevels">
         {{ heightLabel }}
-        <span class="chev" aria-hidden="true">▾</span>
+        <span class="hint">{{ t.noLevels }}</span>
       </button>
       <div class="pair">
-        <button class="chip" type="button">
-          <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="2" rx="1"/><rect x="2" y="7" width="12" height="2" rx="1"/><rect x="2" y="11" width="12" height="2" rx="1"/></svg>
+        <button class="chip ghost" type="button" :title="t.layers">
           {{ t.layers }}
         </button>
-        <button class="chip" type="button">
-          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.2" fill="none" stroke="currentColor"/><path d="M8 4.8v3.4l2.2 1.2" fill="none" stroke="currentColor"/></svg>
+        <button class="chip muted" type="button" disabled :title="hoursDisabled ? t.noTimes : t.hours">
           {{ t.hours }}
+          <span class="hint">{{ t.noTimes }}</span>
         </button>
       </div>
-      <button v-if="ui.page === 'regional'" class="chip" type="button" @click="ui.uploadOpen = true">{{ t.upload }}</button>
-      <button class="chip" type="button" @click="download">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v7M5 8l3 3 3-3M3.5 13h9" fill="none" stroke="currentColor"/></svg>
-        {{ t.export }}
+      <button v-if="ui.page === 'regional'" class="chip primary" type="button" @click="ui.uploadOpen = true">
+        {{ t.upload }}
       </button>
+      <button class="chip ghost" type="button" @click="snapshotPng">{{ t.export }}</button>
     </div>
   </aside>
 </template>
@@ -100,14 +101,13 @@ function download() {
   height: 32px;
   padding: 0 12px 0 8px;
   border-radius: var(--radius-pill);
-  color: #111;
+  color: var(--chrome-ink);
   font-size: 13px;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.35);
+  background: transparent;
 }
 .row.on {
-  background: #111;
-  color: #fff;
-  text-shadow: none;
+  background: var(--pill-on);
+  color: var(--pill-on-ink);
 }
 .row.missing {
   opacity: 0.35;
@@ -122,33 +122,31 @@ function download() {
   height: 32px;
   padding: 0 12px;
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.92);
-  color: #111;
+  background: var(--chrome);
+  color: var(--chrome-ink);
+  border: 1px solid var(--panel-border);
   font-size: 12px;
   box-shadow: var(--shadow-pill);
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-.chip.on {
-  background: #111;
-  color: #fff;
+.chip.primary {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: transparent;
 }
-.chip svg {
-  width: 12px;
-  height: 12px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.4;
-  stroke-linecap: round;
+.chip.ghost {
+  background: transparent;
+  box-shadow: none;
 }
-.chip svg rect {
-  fill: currentColor;
-  stroke: none;
+.chip.muted {
+  opacity: 0.45;
+  cursor: default;
 }
-.chev {
+.hint {
   font-size: 10px;
-  opacity: 0.7;
+  color: var(--chrome-muted);
 }
 .pair {
   display: flex;

@@ -16,7 +16,7 @@ export const useUiStore = defineStore('ui', {
     locale: 'zh' as Locale,
     playing: false,
     hour: 0,
-    density: 0.48,
+    density: 1,
     pointSize: 1,
     strength: 1,
     kind: 'wind' as FieldKind,
@@ -25,6 +25,7 @@ export const useUiStore = defineStore('ui', {
     switching: false,
     labelsOn: true,
     uploadOpen: false,
+    regionalMode: 'demo' as 'demo' | 'inspect',
   }),
   actions: {
     setKind(kind: FieldKind) {

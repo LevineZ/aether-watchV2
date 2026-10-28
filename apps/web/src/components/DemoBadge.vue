@@ -8,13 +8,17 @@ const ui = useUiStore()
 const field = useFieldStore()
 const t = useT()
 
-const show = computed(
-  () => ui.page === 'global' && ui.kind === 'precip' && (field.frame?.meta.demo || field.activePack === 'global/precip'),
-)
+const label = computed(() => {
+  if (ui.page === 'desk') return t.value.sampleBadge
+  if (ui.page === 'global' && ui.kind === 'precip' && (field.frame?.meta.demo || field.activePack === 'global/precip')) {
+    return t.value.demoBadge
+  }
+  return ''
+})
 </script>
 
 <template>
-  <div v-if="show" class="badge" :title="field.frame?.meta.note || t.demoPrecipNote">{{ t.demoBadge }}</div>
+  <div v-if="label" class="badge" :title="field.frame?.meta.note || label">{{ label }}</div>
 </template>
 
 <style scoped>
@@ -31,10 +35,11 @@ const show = computed(
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: #111;
-  background: #fff;
+  color: var(--chrome-ink);
+  background: var(--chrome);
+  border: 1px solid var(--panel-border);
   border-radius: 9999px;
-  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12);
+  box-shadow: var(--shadow-pill);
 }
 @media (max-width: 720px) {
   .badge {
