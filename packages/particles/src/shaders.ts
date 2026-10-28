@@ -42,6 +42,8 @@ uniform float u_advect_scale;
 uniform float u_drop_rate;
 uniform float u_wrap;
 uniform vec4 u_view;
+uniform vec2 u_resolution;
+uniform float u_max_step_px;
 in vec2 v_uv;
 out vec4 fragColor;
 ${BILINEAR}
@@ -82,6 +84,13 @@ void main() {
   float coslat = max(cos(radians(clamp(lonlat.y, -85.0, 85.0))), 0.2);
   vec2 velAdv = vel * u_speed * u_dt * u_advect_scale;
   vec2 dDeg = vec2(velAdv.x / coslat, velAdv.y);
+  vec2 visUv = max(u_view.zw - u_view.xy, vec2(1e-4));
+  vec2 visDeg = visUv * vec2(max(u_bbox.z - u_bbox.x, 1e-4), max(u_bbox.w - u_bbox.y, 1e-4));
+  vec2 pxPerDeg = u_resolution / visDeg;
+  float stepPx = length(vec2(dDeg.x * pxPerDeg.x, dDeg.y * pxPerDeg.y));
+  if (stepPx > u_max_step_px && stepPx > 1e-6) {
+    dDeg *= u_max_step_px / stepPx;
+  }
   lonlat += dDeg;
   pos = lonLatToUv(lonlat, u_bbox);
   bool dead = mask < 0.45 || r < u_drop_rate;
@@ -241,6 +250,7 @@ uniform vec4 u_bbox;
 uniform float u_count;
 uniform float u_wrap;
 uniform float u_kind;
+uniform float u_max_delta;
 out float v_speed;
 out float v_kind;
 out vec2 v_fieldUv;
@@ -260,7 +270,7 @@ void main() {
   vec2 prev = decode(texture(u_prev, uv));
   vec2 curr = decode(texture(u_particles, uv));
   vec2 delta = abs(curr - prev);
-  if (delta.x > 0.12 || delta.y > 0.12) {
+  if (delta.x > u_max_delta || delta.y > u_max_delta) {
     gl_Position = vec4(2.0, 2.0, 0.0, 1.0);
     v_speed = 0.0;
     v_fieldUv = curr;

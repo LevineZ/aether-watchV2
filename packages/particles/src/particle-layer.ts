@@ -183,7 +183,7 @@ function fieldToRgba(frame: FieldFrame): {
  *
  * | kind   | 主视觉原语                                      | 是否粒子                         | 禁止                                      |
  * |--------|-------------------------------------------------|----------------------------------|-------------------------------------------|
- * | wind   | 色幕 α=0.5 + FBO 0.93 半透明白丝（2–3万 / 1%重生） | 是                               | 刷墙死线；静电雪花；粗不透明白墙             |
+ * | wind   | 色幕 α=0.5 + 1–3px 短白丝（2–3万，缓流）         | 是                               | 飞蛇长线；刷墙死线；静电雪花                 |
  * | temp   | 256×1 LINEAR LUT 平滑热幕 + 场双线性             | 否（count=0 且 particlePass=off） | 任何粒子；斑块/噪声；硬边色带               |
  * | precip | 低周波 fbm 雨团：噪声调 alpha + LUT 采样位      | 否                               | 均匀色幕；脏噪点雾；风场粒子层              |
  * | ocean  | 霜蓝短丝 + FS mask discard，仅海面                | 是（0.4× 风速，极稀）            | 上陆；复用 wind 参数；白色/暖色粒子         |
@@ -192,16 +192,18 @@ function fieldToRgba(frame: FieldFrame): {
  * 平流：fragment 用经纬度采样 u10/v10，pos += vel * dt。禁止 dir*step 屏幕划线。
  */
 export const ADVECT_STEP = 0.0024
-/** Degrees of lon at equator per (m/s) at speed=1, dt=1. ~4px/frame @ 12 m/s global. */
+/** Degrees of lon at equator per (m/s) at speed=1, dt=1. Step is then capped to 1–2px. */
 export const ADVECT_DEG_SCALE = 28
-/** 0.18 × 2.5 — silk must visibly streak, not sit as a contour plate. */
-export const WIND_SPEED_GLOBAL = 0.45
-export const WIND_SPEED_DESK = 0.225
-/** Wind FBO fade. 0.93 ⇒ tails die in ~1–2s; only live runners remain. */
-export const TRAIL_FADE = 0.93
+export const WIND_SPEED_GLOBAL = 0.05
+export const WIND_SPEED_DESK = 0.025
+/** Wind FBO fade. 0.8^18 ≈ 0.018 ⇒ tails gone in ~0.3s. */
+export const TRAIL_FADE = 0.8
 export const TRAIL_FADE_OCEAN = 0.93
 export const TRAIL_DECAY = 0.001
 export const TRAIL_DECAY_OCEAN = 0.003
+export const DT_MAX = 0.016
+export const ADVECT_MAX_PX = 2
+export const TRAIL_MAX_PX = 3
 /** Ocean UV is ~cm/s; extra scale keeps silk visible while still 0.4× wind speed coeff. */
 export const OCEAN_ADVECT_MUL = 5
 export const TRAIL_CAP = 0.5
@@ -297,7 +299,7 @@ export type ParticleLayerOptions = {
  * MapLibre CustomLayer：GPU 粒子。
  * - 粒子 UV 只活在 FieldFrame.bbox 内；每帧用当前相机 defaultProjectionData 重绑，禁止缓存 world→UV。
  * - 空闲屏上 2–3 万；拖动停平流；松手重投。
- * - wind：色幕 α=0.5 在最底 + FBO 0.93 半透明白丝。头 1px，线 0.5px α=0.1–0.3。每帧 1% 重生。
+ * - wind：色幕 α=0.5 在最底。每帧只走 1–2px，线段=上一帧→这一帧（1–3px）。FBO 0.8，0.3s 消尽。
  * - temp：256×1 LINEAR LUT 热幕。particlePass=off，count=0。
  * - precip：低周波 fbm 雨团。particlePass=off，无雨丝。
  * - ocean：霜蓝短丝（#7FD4E8）+ FS 海 mask discard，不上陆。
@@ -693,6 +695,13 @@ export class ParticleLayer {
     this.applyKindLook(inferKind(frame))
   }
 
+  private trailMaxDeltaUv(): number {
+    const canvas = this.map?.getCanvas()
+    const w = Math.max(1, canvas?.width ?? 1)
+    const viewW = Math.max(1e-4, this.viewUv[2] - this.viewUv[0])
+    return (TRAIL_MAX_PX / w) * viewW
+  }
+
   private viewLonSpan(): number {
     const map = this.map
     if (!map) return this.wrap ? 360 : Math.abs(this.bbox[2] - this.bbox[0])
@@ -923,11 +932,13 @@ export class ParticleLayer {
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_rand_seed'), Math.random())
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_speed'), this.speed * this.speedMul)
     const now = performance.now()
-    const dt = this.lastAdvectAt
-      ? Math.min(0.05, Math.max(0.008, (now - this.lastAdvectAt) / 1000))
-      : 1 / 60
+    const rawDt = this.lastAdvectAt ? (now - this.lastAdvectAt) / 1000 : DT_MAX
+    const dt = Math.min(rawDt, DT_MAX)
     this.lastAdvectAt = now
     g.uniform1f(g.getUniformLocation(this.updateProg, 'u_dt'), dt)
+    const canvas = this.map?.getCanvas()
+    g.uniform2f(g.getUniformLocation(this.updateProg, 'u_resolution'), canvas?.width ?? 1, canvas?.height ?? 1)
+    g.uniform1f(g.getUniformLocation(this.updateProg, 'u_max_step_px'), ADVECT_MAX_PX)
     g.uniform1f(
       g.getUniformLocation(this.updateProg, 'u_advect_scale'),
       ADVECT_DEG_SCALE * (this.kind === 'ocean' ? OCEAN_ADVECT_MUL : 1),
@@ -990,6 +1001,7 @@ export class ParticleLayer {
     g.uniform1f(g.getUniformLocation(this.trailLineProg, 'u_wrap'), this.wrap)
     g.uniform1f(g.getUniformLocation(this.trailLineProg, 'u_speed_ref'), this.speedRef)
     g.uniform1f(g.getUniformLocation(this.trailLineProg, 'u_kind'), kindCode(this.kind))
+    g.uniform1f(g.getUniformLocation(this.trailLineProg, 'u_max_delta'), this.trailMaxDeltaUv())
     g.uniform4f(
       g.getUniformLocation(this.trailLineProg, 'u_color'),
       this.color[0],

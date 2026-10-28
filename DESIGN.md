@@ -97,7 +97,7 @@ components:
 |----|------|
 | 气温 | 256×1 LINEAR LUT（≥15 节点）+ 场双线性，平滑热幕 alpha≈0.58；无粒子、无硬边色带 |
 | 降雨 | 低周波 fbm 雨团：噪声调制 alpha 与 LUT 采样位；干区深蓝底 α=0.02；无粒子 |
-| 风 | 水彩色幕 α=0.5 饱和度减半（在粒子最底）+ FBO 0.93 **半透明白丝**（屏上 2–3 万、线宽 0.5px、α=0.1–0.3、头 1px）；每帧 1% 重生；速度系数 0.18×2.5 |
+| 风 | 水彩色幕 α=0.5 在粒子最底 + 每帧 1–2px 短白丝（线 1–3px、α=0.1–0.3、头 1px）；FBO 0.8（0.3s 消尽）；全球速度 0.05、区域/预报台 0.025；dt≤0.016 |
 | 洋流 | 霜蓝色幕 × mask + 更细/更短/更慢/极稀的冷色 `#7FD4E8` 流线；FS mask=0 discard，不上陆 |
 
 不刮第三方雷达 / 风场瓦片。Global 包必须 721×361 全球窗（O1）。
@@ -105,7 +105,7 @@ components:
 ## 5. 粒子 / GPU
 
 - 观感峰值 2万–3万；拖动 / 缩放 / 切 Tab 降档或 pause
-- 粒子通道仅 wind / ocean。temp / precip 不跑 GPGPU、不 stamp。平流在 fragment 用经纬度采样 u10/v10，`pos += vel * dt`。风场拖尾是 FBO ping-pong ×0.93 衰减（1–2s 消尽）；切 kind ≤200ms 淡入并清空上一层残影。
+- 粒子通道仅 wind / ocean。temp / precip 不跑 GPGPU、不 stamp。平流在 fragment 用经纬度采样 u10/v10，`pos += vel * dt`（单步 1–2px，dt≤0.016）。风场拖尾是 FBO ping-pong ×0.8 衰减（0.3s 消尽）；切 kind ≤200ms 淡入并清空上一层残影。
 - 切 Tab 保留 canvas，禁止拆球
 
 ## 6. Agent Prompt
