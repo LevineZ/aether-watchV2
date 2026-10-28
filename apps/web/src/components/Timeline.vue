@@ -1,19 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useFieldStore } from '@/stores/field'
 import { useT } from '@/i18n'
 
-const field = useFieldStore()
 const t = useT()
 
-const dateLabel = computed(() => {
-  const raw = field.frame?.time
-  const d = raw ? new Date(raw) : new Date('2026-10-27T00:00:00Z')
-  if (Number.isNaN(d.getTime())) return t.value.today
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(d.getUTCDate()).padStart(2, '0')
-  return `${t.value.today} · ${m}/${day}`
-})
+const dateLabel = computed(() => `${t.value.today} · 10/27`)
 </script>
 
 <template>

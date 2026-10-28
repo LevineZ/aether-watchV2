@@ -181,7 +181,8 @@ export function ensureTyphoonOverlay(map: MapLibreMap, beforeId?: string) {
         paint: {
           'text-color': '#111111',
           'text-halo-color': '#ffffff',
-          'text-halo-width': 6,
+          'text-halo-width': 1.4,
+          'text-halo-blur': 0.2,
         },
       },
       before,
@@ -204,7 +205,8 @@ export function ensureTyphoonOverlay(map: MapLibreMap, beforeId?: string) {
         paint: {
           'text-color': '#111111',
           'text-halo-color': '#ffffff',
-          'text-halo-width': 6,
+          'text-halo-width': 1.4,
+          'text-halo-blur': 0.2,
         },
       },
       before,

@@ -3,7 +3,7 @@ import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import maplibregl from 'maplibre-gl'
 import { ParticleLayer } from '@aether/particles'
 import { mapStyle, PLACE_BEFORE_ID } from '@/map/style'
-import { mapRuntime, applyCamera } from '@/map/runtime'
+import { mapRuntime, applyCamera, setPlaceLabels } from '@/map/runtime'
 import { addRegionalRaster, applyBasemap, ensurePmtilesProtocol, styleWithRegionalRaster } from '@/map/basemap'
 import { ensureTyphoonOverlay, showTyphoonOverlay } from '@/map/typhoon'
 import { useUiStore } from '@/stores/ui'
@@ -11,16 +11,6 @@ import { useFieldStore } from '@/stores/field'
 import { useT } from '@/i18n'
 import DemoBadge from './DemoBadge.vue'
 import ProbeChip from './ProbeChip.vue'
-
-const PLACE_LAYERS = ['place-ocean', 'place-country', 'place-capital', 'place-region', 'place-city']
-
-function applyLabels() {
-  if (!map) return
-  const vis = ui.labelsOn ? 'visible' : 'none'
-  for (const id of PLACE_LAYERS) {
-    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis)
-  }
-}
 
 function typhoonOn() {
   return ui.page === 'global' || ui.page === 'desk'
@@ -65,7 +55,7 @@ onMounted(() => {
     applyCamera(ui.page)
     applyBasemap(map, ui.page, ui.kind)
     showTyphoonOverlay(map, typhoonOn())
-    applyLabels()
+    setPlaceLabels(ui.labelsOn)
     syncParticles()
     particles.resume()
     field.preloadIdle()
@@ -80,14 +70,9 @@ watch(
   () => {
     if (map) applyBasemap(map, ui.page, ui.kind)
     showTyphoonOverlay(map, typhoonOn())
-    applyLabels()
+    setPlaceLabels(ui.labelsOn)
     syncParticles()
   },
-)
-
-watch(
-  () => ui.labelsOn,
-  () => applyLabels(),
 )
 
 onBeforeUnmount(() => {

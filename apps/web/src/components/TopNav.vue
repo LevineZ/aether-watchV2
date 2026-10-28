@@ -47,7 +47,7 @@ function go(to: string) {
           <path d="M10 3.4v1.6M10 15v1.6M3.4 10h1.6M15 10h1.6M5.4 5.4l1.1 1.1M13.5 13.5l1.1 1.1M5.4 14.6l1.1-1.1M13.5 6.5l1.1-1.1" />
         </svg>
       </button>
-      <button class="round pill show" type="button" :title="t.display" @click="ui.labelsOn = !ui.labelsOn">
+      <button class="round pill show" type="button" :title="t.display" @click="ui.toggleLabels()">
         <span class="live" :class="{ off: !ui.labelsOn }" />
         {{ t.display }}
       </button>

@@ -1,6 +1,6 @@
 import { PAGE_DEFAULT_KIND, type FieldKind } from '@aether/field'
 import { defineStore } from 'pinia'
-import { mapRuntime, applyCamera } from '@/map/runtime'
+import { mapRuntime, applyCamera, setPlaceLabels } from '@/map/runtime'
 
 export type PageId = 'global' | 'desk' | 'regional' | 'about'
 export type Locale = 'zh' | 'en'
@@ -47,6 +47,10 @@ export const useUiStore = defineStore('ui', {
     },
     toggleLocale() {
       this.locale = this.locale === 'zh' ? 'en' : 'zh'
+    },
+    toggleLabels() {
+      this.labelsOn = !this.labelsOn
+      setPlaceLabels(this.labelsOn)
     },
   },
 })

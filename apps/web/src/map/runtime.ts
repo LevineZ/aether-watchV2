@@ -93,6 +93,25 @@ export function lockBounds(_bbox: BBox | null, page: keyof typeof CAMERAS) {
   }
 }
 
+const PLACE_LAYERS = [
+  'place-ocean',
+  'place-country',
+  'place-capital',
+  'place-region',
+  'place-city',
+  'typhoon-label',
+  'typhoon-mark-label',
+]
+
+export function setPlaceLabels(on: boolean) {
+  const map = mapRuntime.map
+  if (!map) return
+  const vis = on ? 'visible' : 'none'
+  for (const id of PLACE_LAYERS) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis)
+  }
+}
+
 export function applyCamera(page: keyof typeof CAMERAS) {
   const map = mapRuntime.map
   if (!map) return
