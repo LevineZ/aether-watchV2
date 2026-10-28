@@ -272,6 +272,7 @@ ${prelude}
 ${define}
 uniform vec4 u_bbox;
 uniform vec2 u_grid;
+uniform float u_lon_shift;
 out vec2 v_uv;
 vec2 mercator(vec2 lonlat) {
   float lon = lonlat.x;
@@ -295,7 +296,7 @@ void main() {
   vec2 c3 = vec2(ix + 1.0, iy + 1.0);
   vec2 grid = k == 0.0 || k == 3.0 ? c0 : k == 1.0 ? c1 : k == 2.0 || k == 4.0 ? c3 : c2;
   v_uv = grid / vec2(nx, ny);
-  vec2 lonlat = vec2(mix(u_bbox.x, u_bbox.z, v_uv.x), mix(u_bbox.y, u_bbox.w, v_uv.y));
+  vec2 lonlat = vec2(mix(u_bbox.x, u_bbox.z, v_uv.x) + u_lon_shift, mix(u_bbox.y, u_bbox.w, v_uv.y));
   gl_Position = projectTile(mercator(lonlat));
 }
 `
@@ -312,7 +313,7 @@ uniform float u_wrap;
 in vec2 v_uv;
 out vec4 fragColor;
 
-// Ventusky-like meteorological ramps on OUR FieldFrame. No remote tiles.
+// Own-data meteorological ramps (Ventusky grammar, not their tiles).
 vec3 mix7(float t, vec3 a, vec3 b, vec3 c, vec3 d, vec3 e, vec3 f, vec3 g) {
   t = clamp(t, 0.0, 1.0);
   float s = t * 6.0;
@@ -328,47 +329,49 @@ void main() {
   vec4 w = texture(u_wind, v_uv);
   float t = w.a;
   float mask = w.b;
-  float ey = min(v_uv.y, 1.0 - v_uv.y);
-  float ex = min(v_uv.x, 1.0 - v_uv.x);
-  float edge = u_wrap > 0.5 ? smoothstep(0.0, 0.012, ey) : smoothstep(0.0, 0.02, min(ex, ey));
   vec4 color;
   if (u_mode < 0.5) {
+    // temp −40…50: purple-cold → cyan → green → yellow → red
     vec3 c = mix7(t,
-      vec3(0.239, 0.478, 0.165),
-      vec3(0.498, 0.749, 0.227),
-      vec3(0.847, 0.871, 0.290),
-      vec3(0.941, 0.706, 0.161),
-      vec3(0.878, 0.478, 0.102),
-      vec3(0.820, 0.322, 0.102),
-      vec3(0.722, 0.188, 0.090));
-    color = vec4(c, 0.96);
+      vec3(0.298, 0.114, 0.584),
+      vec3(0.118, 0.251, 0.686),
+      vec3(0.055, 0.647, 0.914),
+      vec3(0.290, 0.871, 0.502),
+      vec3(0.980, 0.800, 0.082),
+      vec3(0.976, 0.451, 0.086),
+      vec3(0.863, 0.149, 0.149));
+    color = vec4(c, 1.0);
   } else if (u_mode < 1.5) {
-    float wet = smoothstep(0.03, 0.75, t);
-    vec3 dry = vec3(0.031, 0.090, 0.055);
-    vec3 glow = vec3(0.780, 0.960, 0.720);
-    color = vec4(mix(dry, glow, wet), mix(0.94, 0.98, wet));
+    // precip: dark dry field + wet glow (still opaque so the map is the weather)
+    float wet = smoothstep(0.02, 0.72, t);
+    vec3 dry = vec3(0.035, 0.078, 0.090);
+    vec3 mid = vec3(0.070, 0.420, 0.380);
+    vec3 glow = vec3(0.780, 0.960, 0.620);
+    vec3 hot = vec3(0.980, 0.780, 0.280);
+    vec3 c = mix(mix(dry, mid, clamp(wet * 1.4, 0.0, 1.0)), mix(glow, hot, smoothstep(0.55, 1.0, t)), wet);
+    color = vec4(c, 1.0);
   } else if (u_mode < 2.5) {
+    // wind |UV|: indigo → cyan → green → yellow → red
     vec3 c = mix7(t,
-      vec3(0.078, 0.227, 0.420),
-      vec3(0.090, 0.510, 0.620),
-      vec3(0.122, 0.690, 0.400),
-      vec3(0.780, 0.831, 0.165),
-      vec3(0.941, 0.627, 0.125),
-      vec3(0.886, 0.227, 0.173),
-      vec3(0.545, 0.102, 0.478));
-    color = vec4(c, mix(0.82, 0.92, t));
+      vec3(0.118, 0.106, 0.294),
+      vec3(0.114, 0.306, 0.847),
+      vec3(0.024, 0.714, 0.831),
+      vec3(0.396, 0.639, 0.051),
+      vec3(0.918, 0.702, 0.031),
+      vec3(0.918, 0.345, 0.047),
+      vec3(0.624, 0.071, 0.224));
+    color = vec4(c, 1.0);
   } else {
     vec3 c = mix7(t,
-      vec3(0.040, 0.140, 0.260),
-      vec3(0.050, 0.290, 0.430),
-      vec3(0.080, 0.520, 0.560),
-      vec3(0.200, 0.760, 0.620),
-      vec3(0.780, 0.860, 0.380),
-      vec3(0.940, 0.720, 0.220),
-      vec3(0.900, 0.380, 0.160));
-    color = vec4(c, mix(0.55, 0.78, t) * mask);
+      vec3(0.031, 0.122, 0.231),
+      vec3(0.039, 0.275, 0.412),
+      vec3(0.063, 0.525, 0.569),
+      vec3(0.196, 0.761, 0.620),
+      vec3(0.784, 0.863, 0.373),
+      vec3(0.941, 0.714, 0.220),
+      vec3(0.898, 0.373, 0.157));
+    color = vec4(c, mix(0.92, 1.0, t) * max(mask, 0.12));
   }
-  color.a *= edge;
   fragColor = color;
 }
 `

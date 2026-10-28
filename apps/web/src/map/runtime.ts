@@ -25,11 +25,14 @@ export const mapRuntime: {
 }
 
 export const CAMERAS = {
-  global: { center: [20, 18] as [number, number], zoom: 1.55, pitch: 0, bearing: 0, globe: false },
-  desk: { center: [128, 30] as [number, number], zoom: 4.15, pitch: 0, bearing: 0, globe: false },
+  global: { center: [8, 17] as [number, number], zoom: 1.48, pitch: 0, bearing: 0, globe: false },
+  desk: { center: [104, 36] as [number, number], zoom: 3.85, pitch: 0, bearing: 0, globe: false },
   regional: { center: [124.5, 28.2] as [number, number], zoom: 5.1, pitch: 0, bearing: 0, globe: false },
-  about: { center: [120, 22] as [number, number], zoom: 1.2, pitch: 0, bearing: 0, globe: true },
+  about: { center: [8, 17] as [number, number], zoom: 1.35, pitch: 0, bearing: 0, globe: false },
 }
+
+/** 预报台 DEMO 窗：china/* 最大范围，相机必须 fit 这份而不是裁到日本以东的黑边。 */
+export const DESK_FIELD_BBOX: BBox = [73, 18, 135, 54]
 
 function projectionType(map: MapLibreMap): string | undefined {
   try {
@@ -112,9 +115,40 @@ export function setPlaceLabels(on: boolean) {
   }
 }
 
-export function applyCamera(page: keyof typeof CAMERAS) {
+let lastFitKey = ''
+
+export function fitFieldView(page: keyof typeof CAMERAS, bbox?: BBox | null) {
   const map = mapRuntime.map
   if (!map) return
+  const win = page === 'desk' ? (bbox && bbox[2] - bbox[0] > 10 ? bbox : DESK_FIELD_BBOX) : null
+  const key = page === 'desk' ? `desk:${win?.join(',')}` : `${page}:${map.getContainer().clientWidth}`
+  if (key === lastFitKey) return
+  lastFitKey = key
+  try {
+    if (page === 'desk' && win) {
+      map.fitBounds(
+        [
+          [win[0], win[1]],
+          [win[2], win[3]],
+        ],
+        { padding: { top: 16, bottom: 52, left: 12, right: 36 }, duration: 520, pitch: 0, bearing: 0 },
+      )
+      return
+    }
+    if (page === 'global' || page === 'about') {
+      const w = map.getContainer().clientWidth || 1280
+      const zoom = Math.log2(Math.max(w, 320) / 512) - 0.03
+      map.easeTo({ center: CAMERAS.global.center, zoom, pitch: 0, bearing: 0, duration: 480 })
+    }
+  } catch (err) {
+    console.warn('[aether] fitFieldView skipped', err)
+  }
+}
+
+export function applyCamera(page: keyof typeof CAMERAS, bbox?: BBox | null) {
+  const map = mapRuntime.map
+  if (!map) return
+  lastFitKey = ''
   const c = CAMERAS[page]
   applyBasemap(map, page, page === 'regional' ? 'ocean' : 'wind')
   lockBounds(page === 'regional' ? FIREFLY_BBOX : null, page)
@@ -126,6 +160,10 @@ export function applyCamera(page: keyof typeof CAMERAS) {
     }
   } catch {
     /* globe optional */
+  }
+  if (page === 'desk' || page === 'global' || page === 'about') {
+    fitFieldView(page, bbox)
+    return
   }
   try {
     map.easeTo({

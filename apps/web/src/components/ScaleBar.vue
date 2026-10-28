@@ -14,14 +14,14 @@ const spec = computed(() => {
       return {
         unit: '°C',
         title: t.value.legendTemp,
-        bar: 'linear-gradient(180deg, #e07a1a 0%, #f0b429 22%, #d8de4a 48%, #7fbf3a 72%, #3d7a2a 100%)',
+        bar: 'linear-gradient(180deg, #dc2626 0%, #f97316 22%, #facc15 42%, #4ade80 62%, #0ea5e9 80%, #4c1d95 100%)',
         ticks: ['50', '30', '10', '0', '−20', '−40'],
       }
     case 'precip':
       return {
         unit: 'mm',
         title: t.value.legendPrecip,
-        bar: 'linear-gradient(180deg, #e8ffd4 0%, #7dcf6a 35%, #1f6b3a 65%, #0b1f14 100%)',
+        bar: 'linear-gradient(180deg, #fde047 0%, #4ade80 28%, #0f766e 58%, #0b1f17 100%)',
         ticks: ['20', '5', '1', '0'],
       }
     case 'ocean':
@@ -35,7 +35,7 @@ const spec = computed(() => {
       return {
         unit: 'm/s',
         title: t.value.legend,
-        bar: 'linear-gradient(180deg, #e07a1a 0%, #f0b429 28%, #c8de4a 55%, #3d8f4a 100%)',
+        bar: 'linear-gradient(180deg, #9f1239 0%, #ea580c 22%, #eab308 48%, #14b8a6 72%, #1e1b4b 100%)',
         ticks: ['24', '12', '4', '0'],
       }
   }

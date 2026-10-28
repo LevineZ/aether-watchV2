@@ -41,6 +41,7 @@ onMounted(() => {
     attributionControl: false,
     fadeDuration: 0,
     maxPitch: 0,
+    renderWorldCopies: true,
     canvasContextAttributes: { antialias: true, alpha: true, preserveDrawingBuffer: false },
   })
   mapRuntime.map = map
@@ -52,7 +53,7 @@ onMounted(() => {
     mapRuntime.particles = particles
     particles.setDensity(ui.density)
     map?.resize()
-    applyCamera(ui.page)
+    applyCamera(ui.page, field.frame?.bbox ?? null)
     applyBasemap(map, ui.page, ui.kind)
     showTyphoonOverlay(map, typhoonOn())
     setPlaceLabels(ui.labelsOn)

@@ -57,20 +57,20 @@ export const mapStyle = {
     {
       id: 'bg',
       type: 'background',
-      paint: { 'background-color': '#0b0f0c' },
+      paint: { 'background-color': '#163024' },
     },
     {
       id: 'land',
       type: 'fill',
       source: 'land',
-      paint: { 'fill-color': '#0b0f0c', 'fill-opacity': 0 },
+      paint: { 'fill-color': '#163024', 'fill-opacity': 0 },
     },
     {
       id: 'water',
       type: 'fill',
       source: 'openmaptiles',
       'source-layer': 'water',
-      paint: { 'fill-color': '#0b0f0c', 'fill-opacity': 0 },
+      paint: { 'fill-color': '#163024', 'fill-opacity': 0 },
     },
     {
       id: 'coast-line',
@@ -78,8 +78,8 @@ export const mapStyle = {
       source: 'land',
       paint: {
         'line-color': '#ffffff',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.7, 3, 0.95, 6, 1.25, 9, 1.5],
-        'line-opacity': 0.95,
+        'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.45, 3, 0.7, 6, 1.0, 9, 1.25],
+        'line-opacity': 0.72,
       },
     },
     {
@@ -90,8 +90,8 @@ export const mapStyle = {
       filter: ['all', ['==', ['to-number', ['get', 'admin_level']], 2], ['!=', ['get', 'maritime'], 1]],
       paint: {
         'line-color': '#ffffff',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.45, 6, 1],
-        'line-opacity': 0.85,
+        'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.35, 6, 0.8],
+        'line-opacity': 0.55,
       },
     },
     {

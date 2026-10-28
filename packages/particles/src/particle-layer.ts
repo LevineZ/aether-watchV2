@@ -761,12 +761,12 @@ export class ParticleLayer {
 
   private drawScalar(g: GL, matrix: Float32Array | number[]) {
     if (!this.scalarProg) return
-    const lonSeg = this.wrap ? 144 : 36
-    const latSeg = this.wrap ? 72 : 24
+    const lonSeg = this.wrap ? 144 : 48
+    const latSeg = this.wrap ? 72 : 32
     const mode =
       this.overlay === 'precip' ? 1 : this.overlay === 'wind' ? 2 : this.overlay === 'ocean' ? 3 : 0
     g.enable(g.BLEND)
-    g.blendFunc(g.SRC_ALPHA, g.ONE_MINUS_SRC_ALPHA)
+    g.blendFunc(g.ONE, g.ONE_MINUS_SRC_ALPHA)
     g.disable(g.DEPTH_TEST)
     g.disableVertexAttribArray(0)
     g.useProgram(this.scalarProg)
@@ -779,7 +779,11 @@ export class ParticleLayer {
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_mode'), mode)
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_hatch'), 0)
     g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_wrap'), this.wrap)
-    g.drawArrays(g.TRIANGLES, 0, lonSeg * latSeg * 6)
+    const shifts = this.wrap ? [-360, 0, 360] : [0]
+    for (const shift of shifts) {
+      g.uniform1f(g.getUniformLocation(this.scalarProg, 'u_lon_shift'), shift)
+      g.drawArrays(g.TRIANGLES, 0, lonSeg * latSeg * 6)
+    }
   }
 }
 

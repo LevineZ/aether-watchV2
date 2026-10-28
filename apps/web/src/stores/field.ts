@@ -17,7 +17,7 @@ import {
   type FieldStats,
   type NcUploadError,
 } from '@aether/field'
-import { lockBounds, mapRuntime } from '@/map/runtime'
+import { lockBounds, mapRuntime, fitFieldView } from '@/map/runtime'
 import { useUiStore, type PageId } from './ui'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
@@ -90,6 +90,9 @@ export const useFieldStore = defineStore('field', {
       }
       mapRuntime.particles?.setFrame(frame)
       lockBounds(ui.page === 'regional' ? (frame?.bbox ?? null) : null, ui.page)
+      if (frame && (ui.page === 'desk' || ui.page === 'global')) {
+        fitFieldView(ui.page, frame.bbox)
+      }
     },
     dropGlobalBind() {
       this.bindToGpu(null)
