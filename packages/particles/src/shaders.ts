@@ -413,7 +413,7 @@ void main() {
     rgb = u_color.rgb;
     a *= mix(0.5, 0.95, nrm);
   } else {
-    rgb = mix(u_color.rgb, vec3(0.91, 0.957, 0.973), nrm * 0.18);
+    rgb = mix(u_color.rgb, windRamp(nrm), 0.85);
   }
   fragColor = vec4(rgb * a, a);
 }
@@ -422,6 +422,7 @@ void main() {
 export const TRAIL_LINE_FS = `#version 300 es
 precision mediump float;
 uniform sampler2D u_wind;
+uniform sampler2D u_lut;
 uniform vec4 u_color;
 uniform float u_kind;
 uniform float u_speed_ref;
@@ -431,20 +432,19 @@ in vec2 v_fieldUv;
 out vec4 fragColor;
 void main() {
   float mask = texture(u_wind, v_fieldUv).b;
+  float nrm = clamp(v_speed / max(u_speed_ref, 0.4), 0.0, 1.0);
   if (v_kind > 0.5 && v_kind < 1.5) {
     // ocean: #7FD4E8 silk. land mask=0 → discard. never on land.
     if (mask < 0.5) discard;
     vec3 rgb = u_color.rgb;
-    float nrm = clamp(v_speed / max(u_speed_ref, 0.4), 0.0, 1.0);
     float a = u_color.a * mix(0.42, 0.88, nrm);
     fragColor = vec4(rgb * a, a);
     return;
   }
   if (mask < 0.45) discard;
-  // wind: the only white streamline #E8F4F8
-  vec3 rgb = u_color.rgb;
-  float nrm = clamp(v_speed / max(u_speed_ref, 0.4), 0.0, 1.0);
-  float a = u_color.a * mix(0.55, 1.0, nrm);
+  // wind: speed LUT only. never white.
+  vec3 rgb = texture(u_lut, vec2(nrm, 0.5)).rgb;
+  float a = mix(0.32, 0.72, nrm);
   fragColor = vec4(rgb * a, a);
 }
 `
@@ -521,8 +521,7 @@ void main() {
   }
   float fade = mix(1.0, 0.18, v_along);
   float widthFade = 1.0 - smoothstep(0.28, 1.0, abs(v_side));
-  vec3 ramp = windRamp(nrm);
-  vec3 rgb = mix(vec3(0.62, 0.72, 0.98), ramp, mix(0.55, 1.0, nrm));
+  vec3 rgb = windRamp(nrm);
   float alpha = mix(0.48, 0.95, nrm) * fade * widthFade * edge;
   fragColor = vec4(rgb, alpha);
 }

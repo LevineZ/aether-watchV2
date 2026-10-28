@@ -183,7 +183,7 @@ function fieldToRgba(frame: FieldFrame): {
  *
  * | kind   | 主视觉原语                                      | 是否粒子                         | 禁止                                      |
  * |--------|-------------------------------------------------|----------------------------------|-------------------------------------------|
- * | wind   | |UV| 色幕 + GPGPU 物理平流白丝（prev→curr 细线） | 是（唯一白流线层）               | 屏幕划线；POINTS 虚线；无粒子               |
+ * | wind   | |UV| 色幕 + GPGPU 风速 LUT 彩丝（prev→curr）     | 是                               | 白丝；屏幕划线；POINTS 虚线；无粒子         |
  * | temp   | 256×1 LINEAR LUT 平滑热幕 + 场双线性             | 否（count=0 且 particlePass=off） | 任何粒子；斑块/噪声；硬边色带               |
  * | precip | 低周波 fbm 雨团：噪声调 alpha + LUT 采样位      | 否                               | 均匀色幕；脏噪点雾；风场粒子层              |
  * | ocean  | 霜蓝短丝 + FS mask discard，仅海面                | 是（0.4× 风速，极稀）            | 上陆；复用 wind 参数；白色/暖色粒子         |
@@ -242,7 +242,7 @@ export const KIND_LOOK: Record<
     speed: WIND_SPEED_GLOBAL,
     drop: 0.0002,
     size: 1.55,
-    color: [0.91, 0.957, 0.973, 0.5], // #E8F4F8
+    color: [0.09, 0.75, 0.82, 0.42],
     ribbonDeg: 5.8,
     ribbonPx: 0.72,
     uvScale: 1,
@@ -294,7 +294,7 @@ export type ParticleLayerOptions = {
  * MapLibre CustomLayer：GPU 粒子。
  * - 粒子 UV 只活在 FieldFrame.bbox 内；每帧用当前相机 defaultProjectionData 重绑，禁止缓存 world→UV。
  * - 空闲 peak≈40 万；拖动停平流、计数不砍；松手 peak + 重投。
- * - wind：|UV| 色幕 + 物理 vel*dt 白丝（#E8F4F8），prev→curr 细线。
+ * - wind：|UV| 色幕 + 物理 vel*dt 风速 LUT 彩丝，严禁白丝。
  * - temp：256×1 LINEAR LUT 热幕。particlePass=off，count=0。
  * - precip：低周波 fbm 雨团。particlePass=off，无雨丝。
  * - ocean：霜蓝短丝（#7FD4E8）+ FS 海 mask discard，不上陆。
@@ -975,6 +975,9 @@ export class ParticleLayer {
     g.activeTexture(g.TEXTURE2)
     g.bindTexture(g.TEXTURE_2D, this.windTex)
     g.uniform1i(g.getUniformLocation(this.trailLineProg, 'u_wind'), 2)
+    g.activeTexture(g.TEXTURE3)
+    g.bindTexture(g.TEXTURE_2D, this.lutTex)
+    g.uniform1i(g.getUniformLocation(this.trailLineProg, 'u_lut'), 3)
     g.uniform2f(g.getUniformLocation(this.trailLineProg, 'u_particle_res'), PARTICLE_TEX.width, PARTICLE_TEX.height)
     g.uniform2f(g.getUniformLocation(this.trailLineProg, 'u_wind_min'), this.uMin, this.vMin)
     g.uniform2f(g.getUniformLocation(this.trailLineProg, 'u_wind_max'), this.uMax, this.vMax)
