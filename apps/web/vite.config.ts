@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
   // Load repo-root .env into process.env for field-cache (EARTHDATA_*, CURRENT_SOURCE, …)
   const env = loadEnv(mode, repo, '')
   for (const [k, v] of Object.entries(env)) {
-    if (process.env[k] === undefined) process.env[k] = v
+    if (process.env[k] === undefined || process.env[k] === '') process.env[k] = v
   }
 
   return {

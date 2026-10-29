@@ -17,7 +17,12 @@
     "cache:ocean": "node scripts/field-cache/cli.mjs ensure global/ocean",
     "cache:status": "node scripts/field-cache/cli.mjs status",
     "cache:ocean:py": ".venv-field/bin/python scripts/field-cache/fetch_oscar.py --pack global/ocean",
-    "cache:regional": "node scripts/field-cache/cli.mjs ensure regional/currents"
+    "cache:regional": "node scripts/field-cache/cli.mjs ensure regional/currents",
+    "cache:wind": "node scripts/field-cache/cli.mjs ensure global/wind",
+    "cache:temp": "node scripts/field-cache/cli.mjs ensure global/temp",
+    "cache:precip": "node scripts/field-cache/cli.mjs ensure global/precip",
+    "cache:om": "node scripts/field-cache/cli.mjs ensure global/wind",
+    "cache:china": "node scripts/field-cache/cli.mjs ensure china/wind"
   },
   "engines": {
     "node": ">=20"

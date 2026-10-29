@@ -1,11 +1,14 @@
 /**
  * Ensure a live FieldFrame pack exists under FIELD_CACHE_DIR (default .cache/fields).
- * Ocean → Python OSCAR fetcher (6h TTL). Wind/temp/precip → stub (OM later) → demo fallback.
+ * Ocean → Python OSCAR fetcher (6h TTL).
+ * Wind/temp/precip → Open-Meteo Node fetcher (same TTL); 429 keeps stale pack.
  */
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { fetchAndWrite as fetchOm, OM_PACKS } from './fetch_open_meteo.mjs'
+export { OM_PACKS }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '../..')
@@ -21,23 +24,14 @@ function loadDotEnv() {
     const k = t.slice(0, i).trim()
     let v = t.slice(i + 1).trim()
     if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1)
-    if (process.env[k] === undefined) process.env[k] = v
+    if (process.env[k] === undefined || process.env[k] === '') process.env[k] = v
   }
 }
 loadDotEnv()
 
 export const OCEAN_PACKS = new Set(['global/ocean', 'regional/currents'])
-export const OM_STUB_PACKS = new Set([
-  'global/wind',
-  'global/temp',
-  'global/precip',
-  'china/wind',
-  'china/temp',
-  'china/precip',
-  'regional/temp',
-  'regional/precip',
-  'forecast/china',
-])
+/** @deprecated use OM_PACKS — kept alias for callers */
+export const OM_STUB_PACKS = OM_PACKS
 
 export function cacheRoot() {
   return path.resolve(repoRoot, process.env.FIELD_CACHE_DIR || '.cache/fields')
@@ -142,15 +136,48 @@ export async function ensureLivePack(packId) {
     }
   }
 
-  // OM hook: wind/temp/precip stay demo for now; architecture ready.
-  if (OM_STUB_PACKS.has(packId)) {
-    return {
-      ok: false,
-      source: 'demo',
-      packId,
-      reason: 'OM live not wired yet (use demo; cache arch ready)',
+  if (OM_PACKS.has(packId)) {
+    const src = (process.env.OPEN_METEO_SOURCE || 'auto').toLowerCase()
+    if (src === 'demo' || src === 'off' || src === 'none') {
+      return { ok: false, source: 'demo', packId, reason: 'OPEN_METEO_SOURCE=demo' }
+    }
+    if (isPackFresh(packId)) {
+      return { ok: true, source: 'live', packId, dir: packPath(packId), cached: true }
+    }
+    try {
+      const result = await fetchOm(packId)
+      if (result?.ok) {
+        return {
+          ok: true,
+          source: 'live',
+          packId,
+          dir: packPath(packId),
+          cached: !!result.cached,
+          stale: !!result.stale,
+          via: result.via || 'open-meteo',
+          written: result.written,
+          sample: result.sample,
+          time: result.time,
+          reason: result.reason,
+        }
+      }
+      return {
+        ok: false,
+        source: 'demo',
+        packId,
+        reason: result?.reason || 'om fetch failed',
+      }
+    } catch (e) {
+      console.warn('[field-cache] om', e instanceof Error ? e.message : e)
+      return {
+        ok: false,
+        source: 'demo',
+        packId,
+        reason: e instanceof Error ? e.message : String(e),
+      }
     }
   }
+
   return { ok: false, source: 'demo', packId, reason: 'unknown pack' }
 }
 
@@ -162,12 +189,12 @@ export function readPackMeta(packId) {
 
 export function statusPayload() {
   const packs = {}
-  for (const id of [...OCEAN_PACKS, ...OM_STUB_PACKS]) {
+  for (const id of [...OCEAN_PACKS, ...OM_PACKS]) {
     packs[id] = {
       fresh: isPackFresh(id),
       exists: fs.existsSync(path.join(packPath(id), 'meta.json')),
       ocean: OCEAN_PACKS.has(id),
-      omStub: OM_STUB_PACKS.has(id),
+      om: OM_PACKS.has(id),
     }
   }
   return {
@@ -176,6 +203,10 @@ export function statusPayload() {
     ttlSeconds: ttlSeconds(),
     hasEarthdataCreds: hasEarthdataCreds(),
     currentSource: process.env.CURRENT_SOURCE || 'auto',
+    openMeteoSource: process.env.OPEN_METEO_SOURCE || 'auto',
+    openMeteoBase: process.env.OPEN_METEO_BASE || 'https://api.open-meteo.com',
+    openMeteoModel: process.env.OPEN_METEO_MODEL || 'best_match',
+    hasOpenMeteoKey: Boolean((process.env.OPEN_METEO_API_KEY || '').trim()),
     packs,
   }
 }

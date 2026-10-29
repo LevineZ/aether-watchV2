@@ -37,7 +37,7 @@ type FieldFrame = {
 | id | 何时 | 行为 |
 |----|------|------|
 | `demo` | 演示默认 | 读 `public/demo/**` 静态包；保证三页有流动 |
-| `live` | 洋流优先 | OSCAR → `.cache/fields`（TTL≈6h）→ 同 FieldFrame；风/气温/降雨 OM 后置仍 demo |
+| `live` | 四要素 | 洋流 OSCAR + 风/气温/降雨 Open-Meteo → `.cache/fields`（TTL≈6h）→ 同 FieldFrame；失败回退 demo |
 | `upload-nc` | 区域场 P0 | 用户 NC → Worker 解析 → FieldFrame |
 
 出处：页脚「示例 · 单帧」+ `meta.source=demo`。顶栏不放「示例数据」角标。  

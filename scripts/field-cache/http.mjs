@@ -8,9 +8,10 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { ensureLivePack, packPath, readPackMeta, statusPayload, OCEAN_PACKS } from './ensure.mjs'
+import { ensureLivePack, packPath, readPackMeta, statusPayload, OCEAN_PACKS, OM_PACKS } from './ensure.mjs'
 
 const BIN_FILES = new Set(['u.bin', 'v.bin', 'mask.bin', 'scalar.bin', 'meta.json'])
+const LIVE_PACKS = new Set([...OCEAN_PACKS, ...OM_PACKS])
 
 function sendJson(res, status, body) {
   const raw = JSON.stringify(body)
@@ -42,7 +43,6 @@ function parsePackPath(pathname) {
   if (rest === 'status') return { kind: 'status' }
   const parts = rest.split('/')
   if (parts.length < 2) return null
-  // pack is two segments for our ids: global/ocean, regional/currents
   const file = parts[parts.length - 1]
   const packId = parts.slice(0, -1).join('/')
   if (file === 'refresh') return { kind: 'refresh', packId }
@@ -74,8 +74,8 @@ export async function handleFieldApi(req, res) {
   }
 
   if (parsed.kind === 'file') {
-    // Auto-ensure ocean packs on meta.json miss / stale
-    if (parsed.file === 'meta.json' && OCEAN_PACKS.has(parsed.packId)) {
+    // Auto-ensure ocean + OM packs on meta.json miss / stale
+    if (parsed.file === 'meta.json' && LIVE_PACKS.has(parsed.packId)) {
       const ensured = await ensureLivePack(parsed.packId)
       if (!ensured.ok) {
         sendJson(res, 503, { error: 'live unavailable', ...ensured })
@@ -83,7 +83,6 @@ export async function handleFieldApi(req, res) {
       }
     }
     const filePath = path.join(packPath(parsed.packId), parsed.file)
-    // path traversal guard
     const root = packPath(parsed.packId)
     if (!path.resolve(filePath).startsWith(path.resolve(root))) {
       sendJson(res, 403, { error: 'forbidden' })

@@ -100,7 +100,7 @@ export const useFieldStore = defineStore('field', {
     },
     async loadIntoCache(packId: DemoPackId) {
       if (this.cache[packId]) return this.cache[packId]
-      // ocean → live cache (OSCAR 6h); wind/temp/precip → demo via loadLive hook
+      // ocean → OSCAR 6h; wind/temp/precip → Open-Meteo 6h (loadLive)
       const frame = await loadLive(packId)
       this.cache[packId] = frame
       return frame

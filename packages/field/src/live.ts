@@ -10,6 +10,17 @@ import {
 } from './types'
 
 const OCEAN_PACKS = new Set(['global/ocean', 'regional/currents'])
+const OM_PACKS = new Set([
+  'global/wind',
+  'global/temp',
+  'global/precip',
+  'china/wind',
+  'china/temp',
+  'china/precip',
+  'regional/temp',
+  'regional/precip',
+  'forecast/china',
+])
 
 async function fetchBuf(url: string): Promise<ArrayBuffer> {
   const res = await fetch(url)
@@ -64,8 +75,8 @@ export async function loadLivePack(packId: string): Promise<FieldFrame> {
     v: asF32(vBuf, n, 'v.bin'),
     kind: kindHint,
     meta: {
-      source: pack.meta?.source === 'live' ? 'live' : 'live',
-      vars: pack.meta?.vars ?? ['uo', 'vo'],
+      source: 'live',
+      vars: pack.meta?.vars ?? (kindHint === 'ocean' ? ['uo', 'vo'] : ['u', 'v']),
       units: pack.meta?.units ?? 'm/s',
       fill: pack.meta?.fill,
       note: pack.meta?.note,
@@ -80,19 +91,24 @@ export async function loadLivePack(packId: string): Promise<FieldFrame> {
 
 /**
  * 真源入口：签名与 loadDemo 相同。
- * - ocean：优先 `/api/fields` 落盘缓存（OSCAR，TTL≈6h）；无钥匙/失败 → demo
- * - wind/temp/precip：OM 后置，现仍 demo（架构已留钩子）
+ * - ocean：`/api/fields` OSCAR 落盘（TTL≈6h）；无钥匙/失败 → demo
+ * - wind/temp/precip：Open-Meteo 落盘（同 TTL）；429/失败 → 旧缓存或 demo
  */
 export async function loadLive(packId: DemoPackId | string): Promise<FieldFrame> {
-  if (OCEAN_PACKS.has(String(packId))) {
+  const id = String(packId)
+  const wantLive = OCEAN_PACKS.has(id) || OM_PACKS.has(id)
+  if (wantLive) {
     try {
-      return await loadLivePack(String(packId))
+      return await loadLivePack(id)
     } catch (e) {
-      console.warn('[aether] loadLive ocean → demo', packId, e instanceof Error ? e.message : e)
+      console.warn(
+        '[aether] loadLive → demo',
+        id,
+        e instanceof Error ? e.message : e,
+      )
     }
   }
 
-  // OM plug point: later call /api/fields for wind|temp|precip packs.
   const frame = await loadDemo(packId)
   return {
     nx: frame.nx,
@@ -109,9 +125,11 @@ export async function loadLive(packId: DemoPackId | string): Promise<FieldFrame>
       vars: frame.meta.vars,
       units: frame.meta.units,
       fill: frame.meta.fill,
-      note: OCEAN_PACKS.has(String(packId))
+      note: OCEAN_PACKS.has(id)
         ? 'ocean live unavailable; demo fallback'
-        : 'OM live not wired; demo',
+        : OM_PACKS.has(id)
+          ? 'OM live unavailable; demo fallback'
+          : 'demo',
     },
   }
 }
