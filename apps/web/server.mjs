@@ -2,9 +2,28 @@ import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { handleFieldApi } from '../../scripts/field-cache/http.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const dist = path.join(__dirname, 'dist')
+const repoRoot = path.resolve(__dirname, '../..')
+
+// Load repo-root .env (KEY=VAL) without printing values
+try {
+  const envPath = path.join(repoRoot, '.env')
+  if (fs.existsSync(envPath)) {
+    for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+      const t = line.trim()
+      if (!t || t.startsWith('#')) continue
+      const i = t.indexOf('=')
+      if (i < 0) continue
+      const k = t.slice(0, i).trim()
+      let v = t.slice(i + 1).trim()
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1)
+      if (process.env[k] === undefined) process.env[k] = v
+    }
+  }
+} catch {}
 const PORT = Number(process.env.PORT || 8765)
 const HOST = process.env.HOST || '0.0.0.0'
 
@@ -31,7 +50,7 @@ function send(res, status, body, headers = {}) {
   res.end(body)
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host}`)
   if (url.pathname === '/health') {
     send(res, 200, JSON.stringify({ status: 'ok', service: 'aether-demo-shell' }), {
@@ -39,6 +58,16 @@ const server = http.createServer((req, res) => {
       'Cache-Control': 'no-store',
     })
     return
+  }
+  if (url.pathname.startsWith('/api/fields')) {
+    try {
+      if (await handleFieldApi(req, res)) return
+    } catch (e) {
+      send(res, 500, JSON.stringify({ error: 'field api' }), {
+        'Content-Type': 'application/json; charset=utf-8',
+      })
+      return
+    }
   }
 
   let pathname = decodeURIComponent(url.pathname)

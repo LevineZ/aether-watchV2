@@ -5,6 +5,7 @@ import {
   inferKind,
   isGlobalDemoPack,
   loadDemo,
+  loadLive,
   parseNcFile,
   fieldStats,
   uvRange,
@@ -38,7 +39,7 @@ export const useFieldStore = defineStore('field', {
     missing: {} as Record<string, boolean>,
   }),
   getters: {
-    badgeAlwaysDemo: () => true,
+    badgeAlwaysDemo: (s) => !(s.frame?.meta?.source === 'live'),
     particleTarget: (s) => (s.frame ? 25_000 : 0),
   },
   actions: {
@@ -99,7 +100,8 @@ export const useFieldStore = defineStore('field', {
     },
     async loadIntoCache(packId: DemoPackId) {
       if (this.cache[packId]) return this.cache[packId]
-      const frame = await loadDemo(packId)
+      // ocean → live cache (OSCAR 6h); wind/temp/precip → demo via loadLive hook
+      const frame = await loadLive(packId)
       this.cache[packId] = frame
       return frame
     },
@@ -237,7 +239,7 @@ export const useFieldStore = defineStore('field', {
         for (const id of rest) {
           if (!this.cache[id]) {
             try {
-              this.cache[id] = await loadDemo(id)
+              this.cache[id] = await loadLive(id)
             } catch {
               if (isGlobalDemoPack(id)) {
                 const kind = inferKind({

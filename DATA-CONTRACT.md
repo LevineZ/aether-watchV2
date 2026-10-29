@@ -37,7 +37,7 @@ type FieldFrame = {
 | id | 何时 | 行为 |
 |----|------|------|
 | `demo` | 演示默认 | 读 `public/demo/**` 静态包；保证三页有流动 |
-| `live` | 后置 | OM / OSCAR / CMEMS → 同 FieldFrame；只换实现 |
+| `live` | 洋流优先 | OSCAR → `.cache/fields`（TTL≈6h）→ 同 FieldFrame；风/气温/降雨 OM 后置仍 demo |
 | `upload-nc` | 区域场 P0 | 用户 NC → Worker 解析 → FieldFrame |
 
 出处：页脚「示例 · 单帧」+ `meta.source=demo`。顶栏不放「示例数据」角标。  
@@ -102,4 +102,13 @@ aether-demo-shell/
 - [ ] 切 Tab 无 Long Task 卡死（pause 粒子 + 不拆 Map）
 - [ ] 静止粒子锁 2–3 万；拖动降档可恢复
 - [ ] 区域场可上传 NC → 同粒子/色幕通路；失败不崩
-- [ ] `live` 仅 stub，接口签名与 demo 相同
+- [x] `live` 洋流走 `/api/fields` 落盘缓存；无钥匙回退 demo；签名与 demo 相同
+
+## 9. 落盘缓存（lite）
+
+- 目录：`FIELD_CACHE_DIR`（默认 `.cache/fields/{packId}/`，gitignore）
+- 形状：与 DEMO 相同 `meta.json` + `u.bin`/`v.bin`/`mask.bin`（仅 ocean）
+- TTL：`FIELD_CACHE_TTL_SECONDS` 默认 **21600（6h）**；并发打缓存不打上游
+- 环境变量（密钥勿进仓）：`EARTHDATA_TOKEN` 或 `EARTHDATA_USERNAME`+`EARTHDATA_PASSWORD`，`CURRENT_SOURCE=auto|oscar|demo`
+- HTTP：`GET /api/fields/status`；`GET /api/fields/{packId}/meta.json`（miss 时确保刷新）；bins 同路径
+- 无钥匙 / 上游失败：前端 `loadLive` 回退 `loadDemo`，演示不崩

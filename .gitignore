@@ -16,3 +16,6 @@ uploads
 public/geo/source/
 public/basemap/regional/*.pmtiles
 public/basemap/regional/source/
+.env
+.venv-field
+.cache/

@@ -13,13 +13,19 @@
     "preview": "pnpm build && PORT=8765 HOST=0.0.0.0 node apps/web/server.mjs",
     "typecheck": "pnpm --filter @aether/web typecheck",
     "test:field": "node --experimental-strip-types --test packages/field/src/*.test.ts",
-    "test": "node --experimental-strip-types --test packages/field/src/*.test.ts packages/particles/src/*.test.ts"
+    "test": "node --experimental-strip-types --test packages/field/src/*.test.ts packages/particles/src/*.test.ts",
+    "cache:ocean": "node scripts/field-cache/cli.mjs ensure global/ocean",
+    "cache:status": "node scripts/field-cache/cli.mjs status",
+    "cache:ocean:py": ".venv-field/bin/python scripts/field-cache/fetch_oscar.py --pack global/ocean",
+    "cache:regional": "node scripts/field-cache/cli.mjs ensure regional/currents"
   },
   "engines": {
     "node": ">=20"
   },
   "packageManager": "pnpm@10.14.0",
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }
