@@ -12,6 +12,13 @@ RUN pnpm generate && pnpm --filter @aether/web build
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=8765 HOST=0.0.0.0
+# OSCAR live fetch (fetch_oscar.py) needs Python + netCDF4/numpy/scipy/httpx
+COPY --from=build /app/scripts/field-cache/requirements.txt /tmp/field-cache-requirements.txt
+RUN apk add --no-cache python3 py3-pip python3-dev build-base hdf5-dev netcdf-dev \
+  && ln -sf python3 /usr/bin/python \
+  && pip3 install --no-cache-dir --break-system-packages -r /tmp/field-cache-requirements.txt \
+  && rm -f /tmp/field-cache-requirements.txt \
+  && apk del python3-dev build-base
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY --from=build /app/apps/web/server.mjs ./apps/web/server.mjs
 # server.mjs imports ../../scripts/field-cache/http.mjs — required at runtime
