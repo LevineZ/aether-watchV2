@@ -19,6 +19,10 @@ function go(to: string) {
   if (route.path === to) return
   void router.push(to)
 }
+
+function onSettings() {
+  // Regional is NC View — do not open FieldFrame upload modal.
+}
 </script>
 
 <template>
@@ -41,7 +45,7 @@ function go(to: string) {
     </div>
     <div class="right">
       <button class="round pill" type="button" @click="ui.toggleLocale()">{{ t.langZh }}</button>
-      <button class="round pill" type="button" :title="t.settings" @click="ui.uploadOpen = ui.page === 'regional'">
+      <button class="round pill" type="button" :title="t.settings" @click="onSettings">
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <circle cx="10" cy="10" r="2.2" />
           <path d="M10 3.4v1.6M10 15v1.6M3.4 10h1.6M15 10h1.6M5.4 5.4l1.1 1.1M13.5 13.5l1.1 1.1M5.4 14.6l1.1-1.1M13.5 6.5l1.1-1.1" />

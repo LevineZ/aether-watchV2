@@ -1,0 +1,14 @@
+uploads/
+__pycache__/
+*.pyc
+.venv/
+venv/
+demo_layers.nc
+sample_scs.nc
+sample_scs.version
+.DS_Store
+build/
+dist/
+*.spec.bak
+tools/license_private.pem
+uv_2026011111.nc

@@ -7,7 +7,7 @@ import Timeline from '@/components/Timeline.vue'
 import LayerRail from '@/components/LayerRail.vue'
 import ScaleBar from '@/components/ScaleBar.vue'
 import MapTools from '@/components/MapTools.vue'
-import UploadModal from '@/components/UploadModal.vue'
+import NcviewFrame from '@/components/NcviewFrame.vue'
 import AboutOverlay from '@/chrome/AboutOverlay.vue'
 import { useUiStore } from '@/stores/ui'
 import { useFieldStore } from '@/stores/field'
@@ -23,11 +23,17 @@ watch(
     try {
       await field.showPage(p)
     } finally {
-      if (p !== 'about') mapRuntime.resume()
-      else mapRuntime.pause()
+      if (p === 'regional') {
+        mapRuntime.pause()
+        ui.uploadOpen = false
+      } else if (p !== 'about') {
+        mapRuntime.resume()
+        ui.uploadOpen = false
+      } else {
+        mapRuntime.pause()
+        ui.uploadOpen = false
+      }
     }
-    if (p === 'regional' && !field.uploaded) ui.uploadOpen = true
-    else ui.uploadOpen = false
   },
   { immediate: true },
 )
@@ -36,13 +42,15 @@ watch(
 <template>
   <div class="shell">
     <div class="stage">
-      <MapHost />
-      <LayerRail v-show="page !== 'about'" />
-      <ScaleBar v-show="page !== 'about'" />
-      <MapTools v-show="page !== 'about'" />
-      <Timeline v-show="page !== 'about'" />
-      <UploadModal v-if="page === 'regional' && ui.uploadOpen" />
-      <AboutOverlay v-if="page === 'about'" />
+      <NcviewFrame v-if="page === 'regional'" />
+      <template v-else>
+        <MapHost />
+        <LayerRail v-show="page !== 'about'" />
+        <ScaleBar v-show="page !== 'about'" />
+        <MapTools v-show="page !== 'about'" />
+        <Timeline v-show="page !== 'about'" />
+        <AboutOverlay v-if="page === 'about'" />
+      </template>
     </div>
     <TopNav />
   </div>

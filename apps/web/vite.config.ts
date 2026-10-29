@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
   for (const [k, v] of Object.entries(env)) {
     if (process.env[k] === undefined || process.env[k] === '') process.env[k] = v
   }
+  const ncviewUpstream = (process.env.NCVIEW_UPSTREAM || 'http://127.0.0.1:8770').replace(/\/$/, '')
 
   return {
     plugins: [
@@ -21,10 +22,17 @@ export default defineConfig(({ mode }) => {
         name: 'aether-health-and-fields',
         configureServer(server) {
           server.middlewares.use(async (req, res, next) => {
-            const pathname = req.url?.split('?')[0] || ''
+            const raw = req.url || '/'
+            const pathname = raw.split('?')[0] || ''
             if (pathname === '/health') {
               res.setHeader('Content-Type', 'application/json; charset=utf-8')
               res.end(JSON.stringify({ status: 'ok', service: 'aether-demo-shell' }))
+              return
+            }
+            if (pathname === '/ncview') {
+              res.statusCode = 302
+              res.setHeader('Location', '/regional')
+              res.end()
               return
             }
             try {
@@ -55,6 +63,13 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       port: 8765,
       strictPort: true,
+      proxy: {
+        '/ncview/': {
+          target: ncviewUpstream,
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/ncview/, '') || '/',
+        },
+      },
     },
     preview: {
       host: '0.0.0.0',

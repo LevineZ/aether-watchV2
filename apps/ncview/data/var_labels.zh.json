@@ -1,0 +1,48 @@
+{
+  "_comment": "中文变量名扩展表。对方有新 NC 变量时，在 names 里加一行即可，无需改代码。匹配顺序：names精确名 > standard_names > patterns正则 > 文件自带long_name > 英文名。风与洋流分开命名，不要混写。",
+  "names": {
+    "T2": "2米气温",
+    "t2": "2米气温",
+    "t2m": "2米气温",
+    "SST": "海表温度",
+    "sst": "海表温度",
+    "U10": "10米U风分量",
+    "V10": "10米V风分量",
+    "u": "U分量",
+    "v": "V分量",
+    "u10": "10米U风分量",
+    "v10": "10米V风分量",
+    "uo": "东向流速U",
+    "vo": "北向流速V",
+    "slp": "海平面气压",
+    "rh2": "2米相对湿度",
+    "temp": "气温",
+    "swh": "有效波高",
+    "__wind__": "风场",
+    "__current__": "流场",
+    "speed": "速度",
+    "wind_speed": "风速",
+    "current_speed": "流速"
+  },
+  "standard_names": {
+    "air_temperature": "气温",
+    "sea_surface_temperature": "海表温度",
+    "wind_speed": "风速",
+    "eastward_wind": "纬向风U",
+    "northward_wind": "经向风V",
+    "eastward_sea_water_velocity": "东向流速U",
+    "northward_sea_water_velocity": "北向流速V",
+    "sea_surface_wave_significant_height": "有效波高"
+  },
+  "patterns": [
+    {"match": "(?i)^t2", "label": "2米气温"},
+    {"match": "(?i)^u10", "label": "10米U风分量"},
+    {"match": "(?i)^v10", "label": "10米V风分量"},
+    {"match": "(?i)^uo$", "label": "东向流速U"},
+    {"match": "(?i)^vo$", "label": "北向流速V"},
+    {"match": "(?i)temp", "label": "温度"},
+    {"match": "(?i)wind", "label": "风场相关"},
+    {"match": "(?i)current|sea_water", "label": "流场相关"},
+    {"match": "(?i)wave|swh", "label": "海浪相关"}
+  ]
+}

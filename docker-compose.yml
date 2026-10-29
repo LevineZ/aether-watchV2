@@ -1,4 +1,16 @@
 services:
+  ncview:
+    build:
+      context: .
+      dockerfile: apps/ncview/Dockerfile
+    environment:
+      NCVIEW_ROOT_PATH: "/ncview"
+    expose:
+      - "8770"
+    volumes:
+      - ncview-uploads:/app/uploads
+    restart: unless-stopped
+
   web:
     build: .
     ports:
@@ -6,6 +18,9 @@ services:
     environment:
       PORT: "8765"
       HOST: "0.0.0.0"
+      NCVIEW_UPSTREAM: "http://ncview:8770"
+    depends_on:
+      - ncview
     healthcheck:
       test:
         [
@@ -19,3 +34,6 @@ services:
       retries: 8
       start_period: 12s
     restart: unless-stopped
+
+volumes:
+  ncview-uploads:

@@ -19,3 +19,12 @@ public/basemap/regional/source/
 .env
 .venv-field
 .cache/
+
+# NC View
+apps/ncview/uploads/
+apps/ncview/.venv/
+apps/ncview/demo_layers.nc
+apps/ncview/sample_scs.nc
+apps/ncview/uv_2026011111.nc
+**/license_private.pem
+.venv-ncview/

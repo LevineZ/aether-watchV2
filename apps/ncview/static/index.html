@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>AetherWatch · 区域场 · NC View</title>
+  <link rel="stylesheet" href="./styles.css?v=13" />
+  <script>window.NCVIEW_API_BASE = "/ncview/api";</script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="var-rail" aria-label="变量">
+      <div class="rail-title">变量</div>
+      <div id="varRailList" class="var-rail-list">
+        <div class="var-item ghost"><span class="dot"></span>u10</div>
+        <div class="var-item ghost"><span class="dot"></span>v10</div>
+        <div class="var-item ghost"><span class="dot"></span>t2m</div>
+        <div class="var-item ghost"><span class="dot"></span>tp</div>
+      </div>
+      <div class="rail-hint">打开 NC 后列出变量与时次</div>
+    </aside>
+
+    <main class="workspace">
+      <div class="preview-label" id="previewLabel">预览 · 未加载</div>
+
+      <section class="panel upload-panel" id="uploadPanel">
+        <div class="empty-card">
+          <span class="nc-badge">区域场 · NC View</span>
+          <h2>NC View</h2>
+          <p class="value-line">打开本地 NC，检视变量与时次。</p>
+          <p class="hint">NetCDF · 本地文件 · 区域 Tab = NC View</p>
+          <label class="drop" id="dropZone">
+            <input type="file" id="fileInput" accept=".nc,.nc4,.cdf" hidden />
+            <div class="empty-actions" onclick="event.stopPropagation()">
+              <button type="button" class="btn-primary" id="btnOpenFile">打开文件</button>
+              <button type="button" class="btn-ghost" id="btnSample">示例</button>
+              <button type="button" class="btn-ghost subtle" id="btnSampleLayers" title="多层演示">多层</button>
+            </div>
+          </label>
+        </div>
+      </section>
+
+      <section class="panel plot-panel hidden" id="plotPanel">
+        <header class="app-bar">
+          <div>
+            <p class="eyebrow">Offline NetCDF</p>
+            <h1>NC View</h1>
+            <p id="fileLabel" class="sub">未选择文件</p>
+          </div>
+          <div class="header-actions">
+            <button type="button" class="icon-btn" id="btnOpen" data-active="false">打开</button>
+            <button type="button" class="icon-btn" id="btnExport" disabled>导出</button>
+            <button type="button" class="icon-btn ghost" id="btnPrint" disabled>打印</button>
+          </div>
+        </header>
+
+        <div class="plot-layout">
+          <div class="controls">
+            <div class="combo-card" id="comboCard">
+              <p class="combo-label">当前组合</p>
+              <p class="combo-value" id="comboValue">—</p>
+            </div>
+
+            <div class="control-card">
+              <div class="field">
+                <label for="varSelect">变量</label>
+                <select id="varSelect"></select>
+                <p class="field-hint" id="varHint"></p>
+              </div>
+
+              <div class="field" id="timeField">
+                <label for="timeSelect">时间</label>
+                <select id="timeSelect"></select>
+              </div>
+
+              <div class="field" id="levelField">
+                <label for="levelSelect">高度层</label>
+                <select id="levelSelect"></select>
+                <p class="field-hint" id="levelHint"></p>
+              </div>
+
+              <div id="otherDims" class="dims"></div>
+
+              <div class="field">
+                <label>图型</label>
+                <div class="seg" id="styleSeg" role="tablist">
+                  <button type="button" class="seg-btn" data-style="auto" data-active="true">自动</button>
+                  <button type="button" class="seg-btn" data-style="heatmap">色块</button>
+                  <button type="button" class="seg-btn" data-style="streamline">流线</button>
+                </div>
+                <p class="field-hint">自动：风速/流场→流线；气温/海温→色块</p>
+              </div>
+            </div>
+
+            <button type="button" class="plot-btn" id="btnPlot">绘图</button>
+          </div>
+
+          <div class="plot-wrap">
+            <div id="plotPlaceholder" class="plot-placeholder">选好组合后点「绘图」</div>
+            <img id="plotImg" class="hidden" alt="NC plot" />
+            <div class="plot-loading hidden" id="plotLoading">解析并出图…</div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./app.js?v=13"></script>
+</body>
+</html>

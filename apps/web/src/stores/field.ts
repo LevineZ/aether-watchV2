@@ -144,15 +144,10 @@ export const useFieldStore = defineStore('field', {
         }
         return
       }
-      if (page === 'regional' && this.uploaded && this.cache.upload) {
+      // Regional = NC View (owner-approved). FieldFrame upload path bypassed.
+      if (page === 'regional') {
         if (seq !== this.pageSeq) return
-        this.bindToGpu(this.cache.upload, 'upload')
-        this.status = 'ready'
-        return
-      }
-      if (page === 'regional' && !this.uploaded) {
-        if (seq !== this.pageSeq) return
-        ui.setKind('ocean')
+        ui.uploadOpen = false
         this.bindToGpu(null)
         this.status = 'idle'
         this.error = ''
@@ -187,8 +182,8 @@ export const useFieldStore = defineStore('field', {
     async selectKind(kind: FieldKind) {
       const ui = useUiStore()
       if (ui.page === 'about') return
-      if (ui.page === 'regional' && !this.uploaded) {
-        ui.uploadOpen = true
+      if (ui.page === 'regional') {
+        // NC View owns regional; ignore FieldFrame kind chips.
         return
       }
       const prev = ui.kind
@@ -279,7 +274,8 @@ export const useFieldStore = defineStore('field', {
       this.uploaded = false
       this.ncError = ''
       this.ncStatus = ''
-      void this.ensurePack(PAGE_PACK.regional)
+      // Regional = NC View; do not rebind FieldFrame demo packs.
+      if (useUiStore().page === 'regional') this.bindToGpu(null)
     },
   },
 })

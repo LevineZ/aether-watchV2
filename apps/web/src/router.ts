@@ -9,6 +9,8 @@ export const router = createRouter({
     { path: '/desk', name: 'desk', meta: { page: 'desk' as PageId }, component: { template: '<div/>' } },
     { path: '/forecast', redirect: '/desk' },
     { path: '/regional', name: 'regional', meta: { page: 'regional' as PageId }, component: { template: '<div/>' } },
+    /** Product lock: /ncview → same regional page (NC View body). */
+    { path: '/ncview', redirect: '/regional' },
     { path: '/about', name: 'about', meta: { page: 'about' as PageId }, component: { template: '<div/>' } },
     { path: '/:pathMatch(.*)*', redirect: '/global' },
   ] as RouteRecordRaw[],
