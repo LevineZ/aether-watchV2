@@ -22,11 +22,14 @@ import {
   SCALAR_FS,
   TRAIL_LINE_FS,
   TRAIL_LINE_VS,
+  PATH_RIBBON_FS,
+  PATH_RIBBON_VS,
   UPDATE_FS,
   makeDrawVS,
   makeLineVS,
   makeQuadGeoVS,
   makeTrailLineVS,
+  makePathRibbonVS,
 } from './shaders'
 
 export type PoolId = 'wind' | 'currents'
@@ -197,19 +200,19 @@ export const ADVECT_DEG_SCALE = 28
 export const WIND_SPEED_GLOBAL = 0.05
 export const WIND_SPEED_DESK = 0.025
 /** Wind FBO fade. 0.8^18 ≈ 0.018 ⇒ tails gone in ~0.3s. */
-export const TRAIL_FADE = 0.8
-export const TRAIL_FADE_OCEAN = 0.93
+export const TRAIL_FADE = 0.955
+export const TRAIL_FADE_OCEAN = 0.955
 export const TRAIL_DECAY = 0.001
-export const TRAIL_DECAY_OCEAN = 0.003
+export const TRAIL_DECAY_OCEAN = 0.001
 export const DT_MAX = 0.016
 export const ADVECT_MAX_PX = 2
-export const TRAIL_MAX_PX = 3
+export const TRAIL_MAX_PX = 8
 /** Ocean UV is ~cm/s; extra scale keeps silk visible while still 0.4× wind speed coeff. */
-export const OCEAN_ADVECT_MUL = 5
+export const OCEAN_ADVECT_MUL = 140
 export const TRAIL_CAP = 0.5
 export const TRAIL_GAIN = 0.95
 export const KIND_SWITCH_MS = 200
-export const TRAIL_LINE_WIDTH = 0.5
+export const TRAIL_LINE_WIDTH = 2.0
 export const TRAIL_TARGET_PX = 0.5
 export const OCEAN_TARGET_PX = 1.84
 
@@ -245,11 +248,11 @@ export const KIND_LOOK: Record<
     style: 'wind-fog',
     overlay: 'wind',
     speed: WIND_SPEED_GLOBAL,
-    drop: 0.01,
-    size: 1,
-    color: [1, 1, 1, 0.22],
-    ribbonDeg: 5.8,
-    ribbonPx: 0.72,
+    drop: 0.018,
+    size: 4.2,
+    color: [1, 1, 1, 0.62],
+    ribbonDeg: 5.2,
+    ribbonPx: 2.55,
     uvScale: 1,
     pool: 'wind',
   },
@@ -257,11 +260,11 @@ export const KIND_LOOK: Record<
     style: 'currents',
     overlay: 'ocean',
     speed: WIND_SPEED_GLOBAL * 0.4,
-    drop: 0.00012,
-    size: 0.78,
-    color: [0.498, 0.831, 0.91, 0.55],
-    ribbonDeg: 3.2,
-    ribbonPx: 7.2,
+    drop: 0.018,
+    size: 4.2,
+    color: [1, 1, 1, 0.62],
+    ribbonDeg: 5.2,
+    ribbonPx: 2.55,
     uvScale: 1,
     pool: 'currents',
   },
@@ -316,6 +319,7 @@ export class ParticleLayer {
   private drawProg: WebGLProgram | null = null
   private lineProg: WebGLProgram | null = null
   private trailLineProg: WebGLProgram | null = null
+  private pathRibbonProg: WebGLProgram | null = null
   private scalarProg: WebGLProgram | null = null
   private fadeProg: WebGLProgram | null = null
   private blitProg: WebGLProgram | null = null
@@ -378,6 +382,7 @@ export class ParticleLayer {
     this.drawProg = program(g, DRAW_VS, DRAW_FS)
     this.lineProg = program(g, LINE_VS, LINE_FS)
     this.trailLineProg = program(g, TRAIL_LINE_VS, TRAIL_LINE_FS)
+    this.pathRibbonProg = program(g, PATH_RIBBON_VS, PATH_RIBBON_FS)
     this.scalarProg = program(g, QUAD_GEO_VS, SCALAR_FS)
     this.fadeProg = program(g, QUAD_VS, FADE_FS)
     this.blitProg = program(g, QUAD_VS, BLIT_FS)
@@ -433,6 +438,7 @@ export class ParticleLayer {
       g.deleteProgram(this.drawProg)
       g.deleteProgram(this.lineProg)
       g.deleteProgram(this.trailLineProg)
+      g.deleteProgram(this.pathRibbonProg)
       g.deleteProgram(this.scalarProg)
       g.deleteProgram(this.fadeProg)
       g.deleteProgram(this.blitProg)
@@ -734,8 +740,9 @@ export class ParticleLayer {
     const look = KIND_LOOK[this.kind]
     const span = this.viewLonSpan()
     if (this.kind === 'ocean') {
-      this.ribbonDeg = look.ribbonDeg * (span > 80 ? 4.2 : 1)
-      this.ribbonPx = look.ribbonPx
+      // global: slight lengthen only — 4.2× made fat shards that look like thrash
+      this.ribbonDeg = look.ribbonDeg * (span > 80 ? 1.35 : 1)
+      this.ribbonPx = look.ribbonPx * (span > 80 ? 0.85 : 1)
     } else if (this.kind === 'precip') {
       this.ribbonDeg = look.ribbonDeg * Math.min(1.6, Math.max(0.7, span / 70))
       this.speed = look.speed
@@ -774,14 +781,21 @@ export class ParticleLayer {
         makeTrailLineVS(shaderData.vertexShaderPrelude, shaderData.define),
         TRAIL_LINE_FS,
       )
+      const pathRibbon = program(
+        g,
+        makePathRibbonVS(shaderData.vertexShaderPrelude, shaderData.define),
+        PATH_RIBBON_FS,
+      )
       const scalar = program(g, makeQuadGeoVS(shaderData.vertexShaderPrelude, shaderData.define), SCALAR_FS)
       if (this.drawProg) g.deleteProgram(this.drawProg)
       if (this.lineProg) g.deleteProgram(this.lineProg)
       if (this.trailLineProg) g.deleteProgram(this.trailLineProg)
+      if (this.pathRibbonProg) g.deleteProgram(this.pathRibbonProg)
       if (this.scalarProg) g.deleteProgram(this.scalarProg)
       this.drawProg = draw
       this.lineProg = line
       this.trailLineProg = trailLine
+      this.pathRibbonProg = pathRibbon
       this.scalarProg = scalar
       this.shaderVariant = shaderData.variantName
     } catch (err) {
@@ -881,7 +895,7 @@ export class ParticleLayer {
     g.drawArrays(g.TRIANGLE_STRIP, 0, 4)
     g.disableVertexAttribArray(0)
     if (!moving) {
-      this.drawTrailLines(g, matrix, count)
+      this.drawPathRibbons(g, matrix, count)
       this.drawParticles(g, matrix, count)
     }
     const tmp = this.trail0
@@ -1039,6 +1053,45 @@ export class ParticleLayer {
     g.uniform1f(g.getUniformLocation(this.drawProg, 'u_speed_ref'), this.speedRef)
     g.uniform1f(g.getUniformLocation(this.drawProg, 'u_kind'), kindCode(this.kind))
     g.drawArrays(g.POINTS, 0, count)
+  }
+
+
+  private drawPathRibbons(g: GL, matrix: Float32Array | number[], count: number) {
+    if (!this.pathRibbonProg || !this.ptex0 || !this.ptex1) return
+    g.enable(g.BLEND)
+    g.blendFunc(g.SRC_ALPHA, g.ONE_MINUS_SRC_ALPHA)
+    g.disable(g.DEPTH_TEST)
+    g.disableVertexAttribArray(0)
+    g.useProgram(this.pathRibbonProg)
+    g.activeTexture(g.TEXTURE0)
+    g.bindTexture(g.TEXTURE_2D, this.ptex0)
+    g.uniform1i(g.getUniformLocation(this.pathRibbonProg, 'u_particles'), 0)
+    g.activeTexture(g.TEXTURE1)
+    g.bindTexture(g.TEXTURE_2D, this.ptex1)
+    g.uniform1i(g.getUniformLocation(this.pathRibbonProg, 'u_prev'), 1)
+    g.activeTexture(g.TEXTURE2)
+    g.bindTexture(g.TEXTURE_2D, this.windTex)
+    g.uniform1i(g.getUniformLocation(this.pathRibbonProg, 'u_wind'), 2)
+    g.uniform2f(g.getUniformLocation(this.pathRibbonProg, 'u_particle_res'), PARTICLE_TEX.width, PARTICLE_TEX.height)
+    g.uniform2f(g.getUniformLocation(this.pathRibbonProg, 'u_wind_min'), this.uMin, this.vMin)
+    g.uniform2f(g.getUniformLocation(this.pathRibbonProg, 'u_wind_max'), this.uMax, this.vMax)
+    this.bindProjection(g, this.pathRibbonProg, matrix)
+    this.bindField(g, this.pathRibbonProg)
+    g.uniform1f(g.getUniformLocation(this.pathRibbonProg, 'u_count'), count)
+    g.uniform1f(g.getUniformLocation(this.pathRibbonProg, 'u_wrap'), this.wrap)
+    g.uniform1f(g.getUniformLocation(this.pathRibbonProg, 'u_kind'), kindCode(this.kind))
+    g.uniform1f(g.getUniformLocation(this.pathRibbonProg, 'u_max_delta'), this.trailMaxDeltaUv())
+    g.uniform1f(g.getUniformLocation(this.pathRibbonProg, 'u_ribbon_px'), this.ribbonPx)
+    g.uniform1f(g.getUniformLocation(this.pathRibbonProg, 'u_style'), this.style === 'currents' ? 1 : 0)
+    g.uniform1f(g.getUniformLocation(this.pathRibbonProg, 'u_speed_ref'), this.speedRef)
+    g.uniform4f(
+      g.getUniformLocation(this.pathRibbonProg, 'u_color'),
+      this.color[0],
+      this.color[1],
+      this.color[2],
+      this.color[3],
+    )
+    g.drawArrays(g.TRIANGLES, 0, count * 6)
   }
 
   private drawRibbons(g: GL, matrix: Float32Array | number[], count: number) {

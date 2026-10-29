@@ -287,6 +287,98 @@ void main() {
 `
 }
 
+/** 路径蝌蚪带：沿粒子真实位移 prev→curr 挤出，头粗尾细，随头蜿蜒。 */
+export function makePathRibbonVS(prelude: string, define: string): string {
+  return `#version 300 es
+${prelude}
+${define}
+uniform sampler2D u_particles;
+uniform sampler2D u_prev;
+uniform sampler2D u_wind;
+uniform vec2 u_particle_res;
+uniform vec2 u_wind_min;
+uniform vec2 u_wind_max;
+uniform vec4 u_bbox;
+uniform float u_count;
+uniform float u_wrap;
+uniform float u_kind;
+uniform float u_max_delta;
+uniform float u_ribbon_px;
+out float v_alive;
+out float v_along;
+out float v_edge;
+out float v_speed;
+out float v_side;
+out float v_kind;
+${MERCATOR}
+void main() {
+  float vid = float(gl_VertexID);
+  float id = floor(vid / 6.0);
+  float k = mod(vid, 6.0);
+  v_side = 0.0;
+  v_kind = u_kind;
+  if (id >= u_count) {
+    gl_Position = vec4(2.0, 2.0, 0.0, 1.0);
+    v_alive = 0.0; v_along = 0.0; v_edge = 0.0; v_speed = 0.0;
+    return;
+  }
+  float along = (k == 2.0 || k == 3.0 || k == 5.0) ? 1.0 : 0.0; // 0=head(curr) 1=tail(prev)
+  float side = (k == 1.0 || k == 4.0 || k == 5.0) ? 1.0 : -1.0;
+  v_side = side;
+  v_along = along;
+  vec2 uv = vec2(mod(id, u_particle_res.x) + 0.5, floor(id / u_particle_res.x) + 0.5) / u_particle_res;
+  vec2 prev = decode(texture(u_prev, uv));
+  vec2 curr = decode(texture(u_particles, uv));
+  vec2 delta = abs(curr - prev);
+  if (delta.x > u_max_delta || delta.y > u_max_delta) {
+    gl_Position = vec4(2.0, 2.0, 0.0, 1.0);
+    v_alive = 0.0; v_speed = 0.0; return;
+  }
+  vec4 wtex = texture(u_wind, curr);
+  v_alive = u_kind > 2.5 ? wtex.a : wtex.b;
+  float ex = u_wrap > 0.5 ? 1.0 : min(curr.x, 1.0 - curr.x);
+  float ey = min(curr.y, 1.0 - curr.y);
+  v_edge = min(ex, ey);
+  vec2 vel = mix(u_wind_min, u_wind_max, wtex.rg);
+  v_speed = length(vel);
+  if (v_alive < 0.45 && u_kind < 2.5) {
+    gl_Position = vec4(2.0, 2.0, 0.0, 1.0); return;
+  }
+  vec2 headLL = fieldLonLat(curr, u_bbox);
+  vec2 tailLL = fieldLonLat(prev, u_bbox);
+  vec2 dir = headLL - tailLL;
+  float len = length(dir);
+  float spd = clamp(v_speed / max(max(abs(u_wind_max.x), abs(u_wind_max.y)), 0.5), 0.0, 1.0);
+  // Same soft ribbon as wind (ocean matches wind look).
+  float minLen = mix(0.35, 1.2, pow(spd, 0.7));
+  if (len < 1e-6) {
+    float vmax = max(max(abs(u_wind_min.x), abs(u_wind_max.x)), max(abs(u_wind_min.y), abs(u_wind_max.y)));
+    vmax = max(vmax, 0.5);
+    vec2 nd = vel / vmax;
+    float dl = length(nd);
+    nd = dl > 1e-5 ? nd / dl : vec2(1.0, 0.0);
+    tailLL = headLL - nd * minLen;
+    dir = headLL - tailLL;
+    len = length(dir);
+  } else if (len < minLen) {
+    dir *= (minLen / len);
+    tailLL = headLL - dir;
+    len = minLen;
+  }
+  float extend = mix(1.7, 3.4, pow(spd, 0.7));
+  tailLL = headLL - normalize(dir) * (len * extend);
+  vec2 ndir = normalize(headLL - tailLL);
+  vec2 perp = vec2(-ndir.y, ndir.x);
+  float halfW = max(0.016, u_ribbon_px * (u_wrap > 0.5 ? 0.022 : 0.015));
+  halfW *= mix(1.4, 0.18, along);
+  float bend = 0.7 * sin(along * 3.14159265) * halfW * mix(2.2, 0.8, spd);
+  bend += 0.15 * sin(id * 0.53) * halfW;
+  vec2 sampleLL = mix(headLL, tailLL, along) + perp * (side * halfW + bend);
+  gl_Position = projectTile(mercator(sampleLL));
+}
+`
+}
+
 /** 地理丝带：头尾与宽度都在 lon/lat 挤出再 projectTile。禁止 NDC 回投（地球投影会把丝带压成点）。 */
 export function makeRibbonVS(prelude: string, define: string): string {
   return `#version 300 es
@@ -366,13 +458,19 @@ void main() {
     halfW = max(0.011, u_ribbon_px * (u_wrap > 0.5 ? 0.026 : 0.016));
   } else if (u_kind > 0.5 && u_kind < 1.5) {
     ndir = dlen > 1e-5 ? dir / dlen : vec2(1.0, 0.0);
-    trail = max(u_ribbon_deg, 2.4) * max(dlen, 0.35);
-    halfW = max(0.07, u_ribbon_px * (u_wrap > 0.5 ? 0.085 : 0.045));
+    // ocean = same ribbon math as wind
+    float spd = clamp(dlen, 0.06, 1.0);
+    trail = max(u_ribbon_deg, 2.0) * mix(0.7, 3.4, pow(spd, 0.75));
+    halfW = max(0.022, u_ribbon_px * (u_wrap > 0.5 ? 0.055 : 0.034));
+    halfW *= mix(1.2, 0.2, along);
+    curl = 0.1 * sin(id * 0.41 + along * 2.4) * halfW * (1.0 - along);
   } else {
     ndir = dlen > 1e-5 ? dir / dlen : vec2(1.0, 0.0);
-    trail = max(u_ribbon_deg, 2.2) * max(dlen, 0.24);
-    halfW = max(0.018, u_ribbon_px * (u_wrap > 0.5 ? 0.042 : 0.026));
-    curl = 0.16 * sin(id * 0.41 + along * 2.4) * halfW;
+    float spd = clamp(dlen, 0.06, 1.0);
+    trail = max(u_ribbon_deg, 2.0) * mix(0.7, 3.4, pow(spd, 0.75));
+    halfW = max(0.022, u_ribbon_px * (u_wrap > 0.5 ? 0.055 : 0.034));
+    halfW *= mix(1.2, 0.2, along);
+    curl = 0.1 * sin(id * 0.41 + along * 2.4) * halfW * (1.0 - along);
   }
   vec2 lonlat = fieldLonLat(pos, u_bbox);
   vec2 head = lonlat;
@@ -391,6 +489,7 @@ const FALLBACK_PRELUDE =
 export const DRAW_VS = makeDrawVS(FALLBACK_PRELUDE, '')
 export const LINE_VS = makeRibbonVS(FALLBACK_PRELUDE, '')
 export const TRAIL_LINE_VS = makeTrailLineVS(FALLBACK_PRELUDE, '')
+export const PATH_RIBBON_VS = makePathRibbonVS(FALLBACK_PRELUDE, '')
 export const makeLineVS = makeRibbonVS
 
 export const DRAW_FS = `#version 300 es
@@ -410,17 +509,18 @@ void main() {
   vec2 p = gl_PointCoord * 2.0 - 1.0;
   float d = length(p);
   if (d > 1.0) discard;
-  float core = smoothstep(1.0, 0.42, d);
+  float core = smoothstep(1.0, 0.25, d);
+  float soft = smoothstep(1.0, 0.55, d);
   float edge = smoothstep(0.0, 0.03, v_edge);
   float nrm = clamp(v_speed / max(u_speed_ref, 0.4), 0.0, 1.0);
   vec3 rgb = u_color.rgb;
-  float a = u_color.a * core * edge;
+  float a = u_color.a * mix(soft, core, 0.65) * edge;
   if (v_kind > 0.5 && v_kind < 1.5) {
-    a *= mix(0.5, 0.95, nrm);
+    rgb = mix(u_color.rgb, vec3(0.95, 0.99, 1.0), 0.35);
+    a *= mix(0.45, 1.0, nrm);
   } else {
-    // wind: 1px bright white head. silk body is the trail, not this point.
     rgb = vec3(1.0);
-    a = mix(0.45, 0.9, nrm) * core * edge;
+    a = mix(0.4, 0.95, nrm) * mix(soft, core, 0.7) * edge;
   }
   fragColor = vec4(rgb * a, a);
 }
@@ -519,19 +619,23 @@ void main() {
     return;
   }
   if (v_kind > 0.5 && v_kind < 1.5) {
-    float fade = mix(0.95, 0.28, v_along);
-    float widthFade = 1.0 - smoothstep(0.4, 1.0, abs(v_side));
-    vec3 rgb = mix(u_color.rgb, oceanRamp(nrm), 0.72);
-    fragColor = vec4(rgb, u_color.a * fade * widthFade * edge);
+    // Match wind silk: thin white ribbon, soft fade along trail.
+    float fade = mix(1.0, 0.1, pow(v_along, 0.7));
+    float widthFade = 1.0 - smoothstep(0.12, 0.95, abs(v_side));
+    vec3 rgb = vec3(1.0);
+    float alpha = mix(0.35, 0.92, nrm) * fade * widthFade * edge;
+    fragColor = vec4(rgb * alpha, alpha);
     return;
   }
-  float fade = mix(1.0, 0.18, v_along);
-  float widthFade = 1.0 - smoothstep(0.28, 1.0, abs(v_side));
+  float fade = mix(1.0, 0.1, pow(v_along, 0.7));
+  float widthFade = 1.0 - smoothstep(0.12, 0.95, abs(v_side));
   vec3 rgb = windRamp(nrm);
-  float alpha = mix(0.48, 0.95, nrm) * fade * widthFade * edge;
-  fragColor = vec4(rgb, alpha);
+  float alpha = mix(0.35, 0.92, nrm) * fade * widthFade * edge;
+  fragColor = vec4(rgb * alpha, alpha);
 }
 `
+
+export const PATH_RIBBON_FS = LINE_FS
 
 export function makeQuadGeoVS(prelude: string, define: string): string {
   return `#version 300 es
