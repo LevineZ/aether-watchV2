@@ -43,16 +43,15 @@ async function useSample() {
       @dragover.prevent="dragging = true"
       @dragleave.prevent="dragging = false"
       @drop.prevent="onDrop"
-      @click="input?.click()"
     >
-      {{ t.ncPick }} · .nc
+      {{ t.emptyNc }}
       <input ref="input" type="file" accept=".nc,.nc3,.cdf" hidden @change="handleFile(($event.target as HTMLInputElement).files?.[0])" />
     </div>
     <p v-if="field.ncStatus && field.ncStatus !== 'done'" class="muted">{{ t.ncParsing }}</p>
     <p v-else-if="field.uploaded" class="ok">{{ t.ncOk }}</p>
-    <p v-else class="subtle">{{ t.emptyNc }}</p>
     <p v-if="field.ncError" class="err">{{ field.ncError }}</p>
     <div class="row">
+      <button class="btn-primary" type="button" @click="input?.click()">{{ t.ncPick }}</button>
       <button class="btn-ghost" type="button" @click="useSample">{{ t.sample }}</button>
       <button v-if="field.uploaded" class="btn-ghost" type="button" @click="field.clearUpload()">demo</button>
     </div>

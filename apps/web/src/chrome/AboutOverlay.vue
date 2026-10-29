@@ -14,7 +14,7 @@ const cards = [
 
 <template>
   <div class="overlay about">
-    <div class="hero glass">
+    <div class="hero">
       <div class="head">
         <Logo />
         <h1>{{ t.brand }}</h1>
@@ -34,14 +34,13 @@ const cards = [
       </div>
       <button class="btn-primary cta" type="button" @click="router.push('/global')">{{ t.aboutCta }}</button>
       <p class="foot">{{ t.aboutFoot }}</p>
-      <p class="foot">{{ t.aboutBasemap }}</p>
     </div>
   </div>
 </template>
 
 <style scoped>
 .about {
-  background: rgba(10, 22, 40, 0.72);
+  background: rgba(8, 10, 12, 0.45);
   pointer-events: auto;
   display: flex;
   align-items: center;
@@ -49,9 +48,13 @@ const cards = [
   padding: 24px;
 }
 .hero {
-  max-width: 860px;
+  max-width: 820px;
   width: 100%;
-  padding: 28px 28px 20px;
+  padding: 28px 28px 22px;
+  background: #fff;
+  color: #111;
+  border-radius: 28px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
 }
 .head {
   display: flex;
@@ -60,14 +63,21 @@ const cards = [
 }
 h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 26px;
 }
 .lead {
   font-size: 18px;
   margin: 12px 0 6px;
 }
-.feats-label {
-  margin-top: 16px;
+.muted,
+.foot {
+  color: #6b7280;
+}
+.feats-label,
+.panel-title {
+  margin: 16px 0 8px;
+  font-size: 13px;
+  font-weight: 650;
 }
 .cards {
   display: grid;
@@ -78,18 +88,18 @@ h1 {
 .card {
   text-align: left;
   padding: 16px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--panel-border);
-  background: rgba(10, 22, 40, 0.35);
+  border-radius: 18px;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  background: #f8fafc;
 }
 .card h2 {
   margin: 0 0 8px;
   font-size: 16px;
-  color: var(--primary);
+  color: #111;
 }
 .card p {
   margin: 0;
-  color: var(--ink-muted);
+  color: #6b7280;
   font-size: 13px;
   line-height: 1.5;
 }
@@ -102,7 +112,6 @@ h1 {
 .foot {
   margin: 16px 0 0;
   font-size: 12px;
-  color: var(--ink-subtle);
 }
 @media (max-width: 720px) {
   .cards {

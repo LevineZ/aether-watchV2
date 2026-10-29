@@ -2,7 +2,6 @@
 import { useRouter, useRoute } from 'vue-router'
 import { useUiStore, type PageId } from '@/stores/ui'
 import { useT } from '@/i18n'
-import Logo from './Logo.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -24,27 +23,33 @@ function go(to: string) {
 
 <template>
   <header class="nav">
-    <div class="brand">
-      <Logo />
+    <div class="brand pill">
       <span class="name">{{ t.brand }}</span>
+      <span class="ver">v0.11</span>
+      <nav class="tabs" aria-label="pages">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          class="tab"
+          :class="{ on: ui.page === tab.id }"
+          type="button"
+          @click="go(tab.to)"
+        >
+          {{ t[tab.key] }}
+        </button>
+      </nav>
     </div>
-    <nav class="tabs" aria-label="pages">
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        class="tab"
-        :class="{ active: ui.page === tab.id }"
-        type="button"
-        @click="go(tab.to)"
-      >
-        {{ t[tab.key] }}
-      </button>
-    </nav>
     <div class="right">
-      <button class="lang" type="button" @click="ui.toggleLocale()">
-        <span :class="{ on: ui.locale === 'zh' }">{{ t.langZh }}</span>
-        <span class="sep">/</span>
-        <span :class="{ on: ui.locale === 'en' }">{{ t.langEn }}</span>
+      <button class="round pill" type="button" @click="ui.toggleLocale()">{{ t.langZh }}</button>
+      <button class="round pill" type="button" :title="t.settings" @click="ui.uploadOpen = ui.page === 'regional'">
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <circle cx="10" cy="10" r="2.2" />
+          <path d="M10 3.4v1.6M10 15v1.6M3.4 10h1.6M15 10h1.6M5.4 5.4l1.1 1.1M13.5 13.5l1.1 1.1M5.4 14.6l1.1-1.1M13.5 6.5l1.1-1.1" />
+        </svg>
+      </button>
+      <button class="round pill show" type="button" :title="t.display" @click="ui.toggleLabels()">
+        <span class="live" :class="{ off: !ui.labelsOn }" />
+        {{ t.display }}
       </button>
     </div>
   </header>
@@ -52,77 +57,93 @@ function go(to: string) {
 
 <style scoped>
 .nav {
-  height: var(--nav-h);
-  flex-shrink: 0;
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  right: 16px;
+  z-index: 6;
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  padding: 0 16px;
-  background: var(--map-veil);
-  border-bottom: 1px solid var(--panel-border);
-  z-index: 5;
+  pointer-events: none;
+}
+.nav > * {
+  pointer-events: auto;
 }
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-width: 180px;
+  gap: 8px;
+  height: 40px;
+  padding: 3px 4px 3px 14px;
 }
 .name {
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 14px;
+  font-weight: 650;
+}
+.ver {
+  font-size: 11px;
+  color: var(--chrome-muted);
+  margin-right: 4px;
 }
 .tabs {
   display: flex;
-  gap: 4px;
-  flex: 1;
-  justify-content: center;
+  align-items: center;
+  gap: 2px;
 }
 .tab {
   height: 32px;
-  padding: 0 14px;
+  padding: 0 12px;
   border-radius: var(--radius-pill);
-  color: var(--ink-muted);
-  font-size: 14px;
+  color: var(--chrome-muted);
+  font-size: 13px;
 }
-.tab:hover {
-  color: var(--ink);
-}
-.tab.active {
-  color: var(--on-primary);
-  background: var(--primary);
+.tab.on {
+  background: #111;
+  color: #fff;
   font-weight: 600;
 }
 .right {
   display: flex;
+  gap: 8px;
+}
+.round {
+  height: 40px;
+  min-width: 40px;
+  padding: 0 12px;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-width: 180px;
-  justify-content: flex-end;
+  justify-content: center;
+  font-size: 13px;
 }
-.lang {
-  font-size: 12px;
-  color: var(--ink-subtle);
+.round svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: #111;
+  stroke-width: 1.6;
+  stroke-linecap: round;
 }
-.lang .on {
-  color: var(--primary);
+.show {
+  gap: 6px;
 }
-.sep {
-  margin: 0 4px;
-  color: var(--ink-subtle);
+.live {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: #22c55e;
+}
+.live.off {
+  background: #d1d5db;
 }
 @media (max-width: 720px) {
-  .name {
+  .ver,
+  .show {
     display: none;
-  }
-  .brand,
-  .right {
-    min-width: 0;
   }
   .tab {
     padding: 0 8px;
-    font-size: 13px;
+    font-size: 12px;
   }
 }
 </style>

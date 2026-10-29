@@ -1,79 +1,95 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useFieldStore } from '@/stores/field'
 import { useT } from '@/i18n'
-import { mapRuntime } from '@/map/runtime'
 
-const field = useFieldStore()
 const t = useT()
 
-function download() {
-  const frame = field.frame
-  const blob = new Blob(
-    [
-      JSON.stringify(
-        {
-          note: '示例数据 · FieldFrame meta only',
-          nx: frame?.nx,
-          ny: frame?.ny,
-          bbox: frame?.bbox,
-          time: frame?.time,
-          meta: frame?.meta,
-        },
-        null,
-        2,
-      ),
-    ],
-    { type: 'application/json' },
-  )
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = 'aether-field-meta.json'
-  a.click()
-  URL.revokeObjectURL(a.href)
-}
-
-const lodLabel = computed(() => {
-  const lod = mapRuntime.particles?.getLod() ?? 'peak'
-  return lod === 'peak' ? '400k' : lod
-})
+const dateLabel = computed(() => `${t.value.today} · 10/27`)
 </script>
 
 <template>
-  <div class="tl glass">
-    <p class="note">{{ t.singleFrame }}</p>
-    <div class="meta subtle">LOD {{ lodLabel }}</div>
-    <button class="btn-ghost" type="button" @click="download">{{ t.download }}</button>
-  </div>
+  <footer class="tl">
+    <button class="round" type="button" disabled aria-label="prev">
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M5 4v12M15 5v10L8 10z" />
+      </svg>
+    </button>
+    <button class="round" type="button" disabled :title="t.singleFrame">
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M7 4.5v11l9-5.5z" />
+      </svg>
+    </button>
+    <button class="date pill" type="button" disabled>{{ dateLabel }}</button>
+    <div class="axis" role="slider" aria-valuenow="0" :aria-label="t.deskAxis">
+      <span class="line" />
+      <span class="knob" />
+    </div>
+  </footer>
 </template>
 
 <style scoped>
 .tl {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  height: 76px;
+  left: 16px;
+  right: 72px;
+  bottom: 16px;
+  z-index: 5;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  pointer-events: none;
+}
+.tl > * {
+  pointer-events: auto;
+}
+.round {
+  width: 40px;
+  height: 40px;
+  border-radius: 99px;
+  background: #111;
+  color: #fff;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.round:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.round svg {
+  width: 16px;
+  height: 16px;
+  fill: #fff;
+}
+.date {
+  height: 40px;
   padding: 0 14px;
-  z-index: 3;
-}
-.note {
-  flex: 1;
-  margin: 0;
   font-size: 13px;
-  color: var(--ink-muted);
 }
-.meta {
-  font-size: 11px;
-  font-family: var(--font-mono);
-  white-space: nowrap;
+.axis {
+  position: relative;
+  flex: 1;
+  height: 40px;
 }
-@media (max-width: 720px) {
-  .meta {
-    display: none;
-  }
+.line {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.88);
+  transform: translateY(-50%);
+}
+.knob {
+  position: absolute;
+  left: 42%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 99px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 </style>

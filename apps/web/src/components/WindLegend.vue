@@ -12,7 +12,7 @@ const spec = computed(() => {
       return {
         title: t.value.legendTemp,
         bar: 'linear-gradient(90deg, #1e47b8, #59d1e6, #f2d647, #db382e)',
-        ticks: ['−20', '0', '20', '40 °C'],
+        ticks: ['−40', '−10', '20', '50 °C'],
       }
     case 'precip':
       return {

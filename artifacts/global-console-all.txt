@@ -1,0 +1,35 @@
+Total messages: 13 (Errors: 2, Warnings: 8)
+Returning 11 messages for level "info"
+
+[WARNING] WebGL: CONTEXT_LOST_WEBGL: loseContext: context lost @ http://127.0.0.1:8765/global:0
+[INFO] [aether] FieldFrame {pack: global/wind, nx: 721, ny: 361, bbox: Array(4), uvRange: Object} @ http://127.0.0.1:8765/src/stores/field.ts:72
+[WARNING] [Vue warn]: Unhandled error during execution of watcher callback 
+  at <MapHost> 
+  at <App> @ http://127.0.0.1:8765/node_modules/.vite/deps/chunk-6BAYKYDG.js?v=79584044:2305
+[WARNING] [Vue warn]: Unhandled error during execution of component update 
+  at <MapHost> 
+  at <App> @ http://127.0.0.1:8765/node_modules/.vite/deps/chunk-6BAYKYDG.js?v=79584044:2305
+[WARNING] [.WebGL-0x9dc000fda00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels @ http://127.0.0.1:8765/global:0
+[WARNING] [.WebGL-0x9dc000fda00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels @ http://127.0.0.1:8765/global:0
+[WARNING] [.WebGL-0x9dc000fda00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels @ http://127.0.0.1:8765/global:0
+[WARNING] [.WebGL-0x9dc000fda00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat) @ http://127.0.0.1:8765/global:0
+[WARNING] performance warning: READ-usage buffer was written, then fenced, but written again before being read back. This discarded the shadow copy that was created to accelerate readback. @ http://127.0.0.1:8765/node_modules/.vite/deps/maplibre-gl.js?v=5063b82b:17225
+Error: Could not compile fragment shader: 
+    at new Ui (http://127.0.0.1:8765/node_modules/.vite/deps/maplibre-gl.js?v=5063b82b:19291:117)
+    at Xa.useProgram (http://127.0.0.1:8765/node_modules/.vite/deps/maplibre-gl.js?v=5063b82b:20676:55)
+    at Xa.clearStencil (http://127.0.0.1:8765/node_modules/.vite/deps/maplibre-gl.js?v=5063b82b:20519:18)
+    at Xa.render (http://127.0.0.1:8765/node_modules/.vite/deps/maplibre-gl.js?v=5063b82b:20613:370)
+    at ds._render (http://127.0.0.1:8765/node_modules/.vite/deps/maplibre-gl.js?v=5063b82b:23214:1170)
+    at http://127.0.0.1:8765/node_modules/.vite/deps/maplibre-gl.js?v=5063b82b:23233:22
+    at http://127.0.0.1:8765/node_modules/.vite/deps/maplibre-gl.js?v=5063b82b:13000:19
+TypeError: Cannot read properties of null (reading 'getLayer')
+    at ds.getLayer (http://127.0.0.1:8765/node_modules/.vite/deps/maplibre-gl.js?v=5063b82b:23056:31)
+    at vis (http://127.0.0.1:8765/src/map/basemap.ts:21:12)
+    at applyBasemap (http://127.0.0.1:8765/src/map/basemap.ts:114:35)
+    at http://127.0.0.1:8765/src/components/MapHost.vue:61:18
+    at callWithErrorHandling (http://127.0.0.1:8765/node_modules/.vite/deps/chunk-6BAYKYDG.js?v=79584044:2453:19)
+    at callWithAsyncErrorHandling (http://127.0.0.1:8765/node_modules/.vite/deps/chunk-6BAYKYDG.js?v=79584044:2460:17)
+    at baseWatchOptions.call (http://127.0.0.1:8765/node_modules/.vite/deps/chunk-6BAYKYDG.js?v=79584044:3178:47)
+    at job (http://127.0.0.1:8765/node_modules/.vite/deps/chunk-6BAYKYDG.js?v=79584044:2182:18)
+    at callWithErrorHandling (http://127.0.0.1:8765/node_modules/.vite/deps/chunk-6BAYKYDG.js?v=79584044:2453:33)
+    at flushJobs (http://127.0.0.1:8765/node_modules/.vite/deps/chunk-6BAYKYDG.js?v=79584044:2692:9)

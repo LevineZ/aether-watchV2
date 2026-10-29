@@ -48,7 +48,7 @@ type FieldFrame = {
 ```
 public/demo/
   global/wind|ocean|temp|precip/   # 全球窗 ~721×361 / 0.5°；禁绑 regional 141×131
-  china/wind|temp|precip/          # 预报台全国。洋流无近岸包 → 灰芯片
+  china/wind|temp|precip/          # 区域风等备用；预报台相机窗改绑 global/* 铺满视口
   regional/currents|temp|precip/   # 东海窗；岸线/DEM 走底图 PMTiles，不进 FieldFrame
 ```
 
@@ -67,8 +67,8 @@ public/demo/
 
 ## 5. 粒子与性能门禁
 
-- 全页峰值：**30万–60万**（GPU 驻留；webgl-wind / MapLibre CustomLayer）
-- LOD：空闲 **peak≈40 万**；拖动停平流、计数不砍；**松手必须回 peak 并重投**。禁止卡在 interact/8k。
+- 全页峰值：**2万–3万**（屏上风粒子；webgl-wind / MapLibre CustomLayer）
+- LOD：空闲 **peak=3 万**；拖动停平流、计数不砍；**松手必须回 peak 并重投**。禁止卡在 interact/8k。
 - 全球风场与区域场洋流 **分池**，勿同屏叠满两套峰值
 - 切 Tab：**保留 Map/canvas**，停粒子；禁止整页拆球 + 同步 decode 整包
 
@@ -76,12 +76,12 @@ public/demo/
 
 | 效果 | 页 | 数据 |
 |------|----|------|
-| 风雾丝带 | 三页芯片；默认全球/预报台 | UV，**无 mask** |
+| 风速流线 | 三页芯片；默认全球/预报台 | UV，**无 mask**；丝带按风速着色 |
 | 洋流水幕（仅海） | 三页芯片；默认区域场 | UV + **硬海洋 mask**（岸线可软 2–4px） |
-| 气温热幕 | 三页芯片 | scalar 全 bbox，**禁 mask** |
-| 降雨积水斑 | 三页芯片 | scalar 细线/积水斑，**禁 mask** |
+| 气温热幕 | 三页芯片 | scalar 全 bbox，**禁 mask**；无粒子 |
+| 降雨雨丝 | 三页芯片 | scalar 湿幕 + 下落雨丝（湿区），**禁 mask** |
 
-色：壳 `#0a1628` / 强调 `#5ac8e6`；禁彩虹色标（UI 锁）。
+色：壳白胶囊 `#ffffff` / 选中与播放 `#111111`；禁把第三方天气瓦片当色标。
 
 ## 7. 轻仓目录（建议）
 
@@ -100,6 +100,6 @@ aether-demo-shell/
 
 - [ ] 三页默认 `demo` 均有流动；页脚「示例 · 单帧」，顶栏无「示例数据」角标
 - [ ] 切 Tab 无 Long Task 卡死（pause 粒子 + 不拆 Map）
-- [ ] 静止粒子可达 30万+；拖动降档可恢复
+- [ ] 静止粒子锁 2–3 万；拖动降档可恢复
 - [ ] 区域场可上传 NC → 同粒子/色幕通路；失败不崩
 - [ ] `live` 仅 stub，接口签名与 demo 相同

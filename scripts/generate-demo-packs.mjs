@@ -120,7 +120,7 @@ function cellLonLat(nx, ny, bbox, ix, iy) {
   return [lon, lat]
 }
 
-function pack(dir, { nx, ny, bbox, time, u, v, scalar, mask, vars, units, fill, kind, source }) {
+function pack(dir, { nx, ny, bbox, time, u, v, scalar, mask, vars, units, fill, kind, source, demo, note }) {
   ensureDir(dir)
   const meta = {
     nx,
@@ -140,6 +140,7 @@ function pack(dir, { nx, ny, bbox, time, u, v, scalar, mask, vars, units, fill, 
       rowOrder: 'south-north',
       endian: 'le',
       dtype: 'float32',
+      ...(demo ? { demo: true, note: note ?? 'DEMO' } : {}),
     },
   }
   fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(meta, null, 2))
@@ -257,6 +258,15 @@ function globalTemp(nx, ny) {
   return { nx, ny, bbox, u, v, scalar }
 }
 
+/** O3 DEMO 雨斑：墨湾 / 印尼陆缘。非实况。 */
+function demoPrecipBlobs(lon, lat) {
+  const gulf = 11 * Math.exp(-(((lon + 90) ** 2) / 32 + ((lat - 25.5) ** 2) / 14))
+  const java = 9.5 * Math.exp(-(((lon - 106.8) ** 2) / 18 + ((lat + 6.2) ** 2) / 11))
+  const makassar = 8.6 * Math.exp(-(((lon - 118) ** 2) / 16 + ((lat + 2) ** 2) / 9))
+  const malacca = 6.4 * Math.exp(-(((lon - 104) ** 2) / 22 + ((lat - 2.5) ** 2) / 12))
+  return gulf + java + makassar + malacca
+}
+
 function globalPrecip(nx, ny) {
   const bbox = [-180, -90, 180, 90]
   const u = new Float32Array(nx * ny)
@@ -270,7 +280,7 @@ function globalPrecip(nx, ny) {
       const monsoon = 11 * Math.exp(-(((lon - 90) ** 2) / 1400 + ((lat - 18) ** 2) / 80))
       const wpac = 8 * Math.exp(-(((lon - 135) ** 2) / 900 + ((lat - 12) ** 2) / 70))
       const amazon = 7 * Math.exp(-(((lon + 62) ** 2) / 700 + ((lat + 4) ** 2) / 90))
-      scalar[i] = Math.max(0, itcz + monsoon + wpac + amazon - 1.8)
+      scalar[i] = Math.max(0, itcz + monsoon + wpac + amazon - 1.8 + demoPrecipBlobs(lon, lat))
       u[i] = 0
       v[i] = 0
     }
@@ -891,8 +901,31 @@ function writeClassicNc(file, { nx, ny, bbox, u, v }) {
   fs.writeFileSync(file, Buffer.concat([header.concat(), assembledVars, ...dataParts]))
 }
 
-const land = loadLand()
+const PRECIP_ONLY = process.argv.includes('--precip-only')
 const now = '2026-10-21T00:00:00Z'
+
+function bakeGlobalPrecip() {
+  const gp = globalPrecip(721, 361)
+  assertPack('global/precip', { ...gp, kind: 'precip', maskFile: null })
+  pack(path.join(demoRoot, 'global', 'precip'), {
+    ...gp,
+    time: now,
+    kind: 'precip',
+    vars: ['precip'],
+    units: 'mm',
+    demo: true,
+    note: 'DEMO rain patches: Gulf of Mexico / Indonesia. Not live radar.',
+  })
+}
+
+if (PRECIP_ONLY) {
+  ensureDir(demoRoot)
+  bakeGlobalPrecip()
+  console.log('baked public/demo/global/precip (DEMO blobs, 721×361)')
+  process.exit(0)
+}
+
+const land = loadLand()
 if (!fs.existsSync(oscarPath)) {
   throw new Error(`missing OSCAR clim ${oscarPath}`)
 }
@@ -944,15 +977,7 @@ pack(path.join(demoRoot, 'global', 'temp'), {
   units: 'degC',
 })
 
-const gp = globalPrecip(721, 361)
-assertPack('global/precip', { ...gp, kind: 'precip', maskFile: null })
-pack(path.join(demoRoot, 'global', 'precip'), {
-  ...gp,
-  time: now,
-  kind: 'precip',
-  vars: ['precip'],
-  units: 'mm',
-})
+bakeGlobalPrecip()
 
 const cw = chinaWind(249, 145)
 pack(path.join(demoRoot, 'china', 'wind'), {
@@ -1072,7 +1097,7 @@ fs.writeFileSync(
 | global/wind | 全球风雾 ~0.5°（721×361），全地球窗 |
 | global/ocean | 全球洋流 ~0.5° + 硬海 mask；禁绑区域 141×131 |
 | global/temp | 全球气温热幕 scalar，禁 maskFile |
-| global/precip | 全球降雨积水斑 scalar，禁 maskFile |
+| global/precip | 全球降雨积水斑 scalar（墨湾/印尼 DEMO 雨斑），禁 maskFile |
 | china/wind | 预报台全国风 ≥0.25°（249×145） |
 | china/temp | 预报台全国气温 scalar |
 | china/precip | 预报台全国降雨 scalar |

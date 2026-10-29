@@ -25,11 +25,19 @@ export const mapRuntime: {
 }
 
 export const CAMERAS = {
-  global: { center: [120, 22] as [number, number], zoom: 1.35, pitch: 0, bearing: 0, globe: true },
-  desk: { center: [105, 36] as [number, number], zoom: 3.4, pitch: 0, bearing: 0, globe: false },
+  global: { center: [0, 18] as [number, number], zoom: 1.52, pitch: 0, bearing: 0, globe: false },
+  desk: { center: [104, 36] as [number, number], zoom: 3.85, pitch: 0, bearing: 0, globe: false },
   regional: { center: [124.5, 28.2] as [number, number], zoom: 5.1, pitch: 0, bearing: 0, globe: false },
-  about: { center: [120, 22] as [number, number], zoom: 1.2, pitch: 0, bearing: 0, globe: true },
+  about: { center: [8, 17] as [number, number], zoom: 1.35, pitch: 0, bearing: 0, globe: false },
 }
+
+/**
+ * 预报台相机窗：东亚含日印，场绑全球包铺满视口。
+ * 禁止再 fit china 数据矩形（那会在两侧露出底图）。
+ */
+export const DESK_VIEW_BBOX: BBox = [68, 6, 152, 54]
+/** @deprecated 预报台不再裁数据窗；仅作旧名别名。 */
+export const DESK_FIELD_BBOX: BBox = DESK_VIEW_BBOX
 
 function projectionType(map: MapLibreMap): string | undefined {
   try {
@@ -93,9 +101,63 @@ export function lockBounds(_bbox: BBox | null, page: keyof typeof CAMERAS) {
   }
 }
 
-export function applyCamera(page: keyof typeof CAMERAS) {
+const PLACE_LAYERS = [
+  'place-ocean',
+  'place-country',
+  'place-capital',
+  'place-region',
+  'place-city',
+  'typhoon-label',
+  'typhoon-mark-label',
+]
+
+export function setPlaceLabels(on: boolean) {
   const map = mapRuntime.map
   if (!map) return
+  const vis = on ? 'visible' : 'none'
+  for (const id of PLACE_LAYERS) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis)
+  }
+}
+
+let lastFitKey = ''
+
+export function fitFieldView(page: keyof typeof CAMERAS, _bbox?: BBox | null) {
+  const map = mapRuntime.map
+  if (!map) return
+  const key = page === 'desk' ? `desk:${DESK_VIEW_BBOX.join(',')}` : `${page}:${map.getContainer().clientWidth}`
+  if (key === lastFitKey) return
+  lastFitKey = key
+  try {
+    if (page === 'desk') {
+      map.fitBounds(
+        [
+          [DESK_VIEW_BBOX[0], DESK_VIEW_BBOX[1]],
+          [DESK_VIEW_BBOX[2], DESK_VIEW_BBOX[3]],
+        ],
+        { padding: 0, duration: 520, pitch: 0, bearing: 0 },
+      )
+      return
+    }
+    if (page === 'global' || page === 'about') {
+      // Inset from ±180 so the dateline seam never shows a black world-copy.
+      map.fitBounds(
+        [
+          [-168, -52],
+          [168, 72],
+        ],
+        { padding: 0, duration: 0, pitch: 0, bearing: 0 },
+      )
+    }
+  } catch (err) {
+    console.warn('[aether] fitFieldView skipped', err)
+  }
+}
+
+export function applyCamera(page: keyof typeof CAMERAS, bbox?: BBox | null) {
+  const map = mapRuntime.map
+  if (!map) return
+  lastFitKey = ''
   const c = CAMERAS[page]
   applyBasemap(map, page, page === 'regional' ? 'ocean' : 'wind')
   lockBounds(page === 'regional' ? FIREFLY_BBOX : null, page)
@@ -107,6 +169,10 @@ export function applyCamera(page: keyof typeof CAMERAS) {
     }
   } catch {
     /* globe optional */
+  }
+  if (page === 'desk' || page === 'global' || page === 'about') {
+    fitFieldView(page, bbox)
+    return
   }
   try {
     map.easeTo({

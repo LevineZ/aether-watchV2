@@ -1,0 +1,46 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { describe, test } from 'node:test'
+
+describe('GPGPU slow sand silk', () => {
+  test('slow coefficients, dt cap, 1–2px step, 0.3s fade', () => {
+    const src = readFileSync(new URL('./particle-layer.ts', import.meta.url), 'utf8')
+    assert.match(src, /TRAIL_FADE = 0\.8/)
+    assert.match(src, /TRAIL_FADE_OCEAN = 0\.93/)
+    assert.match(src, /WIND_SPEED_GLOBAL = 0\.05/)
+    assert.match(src, /WIND_SPEED_DESK = 0\.025/)
+    assert.match(src, /DT_MAX = 0\.016/)
+    assert.match(src, /ADVECT_MAX_PX = 2/)
+    assert.match(src, /TRAIL_MAX_PX = 3/)
+    assert.match(src, /Math\.min\(rawDt, DT_MAX\)/)
+    assert.match(src, /drop: 0\.01/)
+    assert.match(src, /TRAIL_LINE_WIDTH = 0\.5/)
+    assert.match(src, /g\.drawArrays\(g\.LINES, 0, count \* 2\)/)
+    assert.match(src, /this\.drawParticles\(g, matrix, count\)/)
+    const shaders = readFileSync(new URL('./shaders.ts', import.meta.url), 'utf8')
+    assert.match(shaders, /c\.r \/ 255\.0 \+ c\.b/)
+    assert.match(shaders, /vel \* u_speed \* u_dt \* u_advect_scale/)
+    assert.match(shaders, /u_max_step_px/)
+    assert.match(shaders, /u_max_delta/)
+    assert.doesNotMatch(shaders, /dir \* nrm \* u_step/)
+    assert.match(shaders, /r < u_drop_rate/)
+    assert.doesNotMatch(shaders, /delta\.x > 0\.12/)
+    assert.match(shaders, /uniform sampler2D u_prev/)
+  })
+
+  test('wind silk is thin translucent white; curtain α=0.5 sits under particles', () => {
+    const src = readFileSync(new URL('./particle-layer.ts', import.meta.url), 'utf8')
+    assert.match(src, /\[1, 1, 1, 0\.22\]/)
+    assert.match(src, /size: 1,/)
+    assert.match(src, /\[0\.498, 0\.831, 0\.91, 0\.55\]/)
+    assert.match(src, /this\.drawScalar\(g, matrix\)/)
+    const shaders = readFileSync(new URL('./shaders.ts', import.meta.url), 'utf8')
+    assert.match(shaders, /float a = mix\(0\.1, 0\.3, nrm\)/)
+    assert.match(shaders, /vec3 rgb = vec3\(1\.0\)/)
+    assert.match(shaders, /#7FD4E8/)
+    assert.doesNotMatch(shaders, /vec3 silkRamp/)
+    assert.match(shaders, /mix\(vec3\(luma\), rgb, 0\.5\)/)
+    assert.match(shaders, /alpha = 0\.5/)
+    assert.match(shaders, /if \(mask < 0\.5\) discard/)
+  })
+})

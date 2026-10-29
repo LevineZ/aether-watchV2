@@ -3,6 +3,7 @@ import {
   applyMaskContract,
   assertGlobalPack,
   inferKind,
+  isGlobalDemoPack,
   loadDemo,
   parseNcFile,
   fieldStats,
@@ -16,7 +17,7 @@ import {
   type FieldStats,
   type NcUploadError,
 } from '@aether/field'
-import { lockBounds, mapRuntime } from '@/map/runtime'
+import { lockBounds, mapRuntime, fitFieldView } from '@/map/runtime'
 import { useUiStore, type PageId } from './ui'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
@@ -38,7 +39,7 @@ export const useFieldStore = defineStore('field', {
   }),
   getters: {
     badgeAlwaysDemo: () => true,
-    particleTarget: (s) => (s.frame ? 400_000 : 0),
+    particleTarget: (s) => (s.frame ? 25_000 : 0),
   },
   actions: {
     missKey(page: PageId, kind: FieldKind) {
@@ -52,12 +53,25 @@ export const useFieldStore = defineStore('field', {
     markMissing(page: PageId, kind: FieldKind, yes: boolean) {
       this.missing[this.missKey(page, kind)] = yes
     },
-    bindToGpu(frame: FieldFrame | null) {
+    bindToGpu(frame: FieldFrame | null, packId?: DemoPackId | 'upload') {
       const ui = useUiStore()
+      const pack = packId ?? this.activePack
       if (frame) applyMaskContract(frame)
       if (frame && ui.page === 'global') {
-        assertGlobalPack(String(this.activePack), frame)
+        try {
+          assertGlobalPack(String(pack), frame)
+        } catch (e) {
+          console.warn('[aether] FieldFrame reject', {
+            pack,
+            nx: frame.nx,
+            ny: frame.ny,
+            bbox: [...frame.bbox],
+            reason: e instanceof Error ? e.message : String(e),
+          })
+          throw e
+        }
       }
+      if (packId !== undefined) this.activePack = packId
       this.frame = frame
       this.stats = frame ? fieldStats(frame) : null
       if (frame) {
@@ -76,6 +90,12 @@ export const useFieldStore = defineStore('field', {
       }
       mapRuntime.particles?.setFrame(frame)
       lockBounds(ui.page === 'regional' ? (frame?.bbox ?? null) : null, ui.page)
+      if (frame && (ui.page === 'desk' || ui.page === 'global')) {
+        fitFieldView(ui.page)
+      }
+    },
+    dropGlobalBind() {
+      this.bindToGpu(null)
     },
     async loadIntoCache(packId: DemoPackId) {
       if (this.cache[packId]) return this.cache[packId]
@@ -84,20 +104,19 @@ export const useFieldStore = defineStore('field', {
       return frame
     },
     async ensurePack(packId: DemoPackId) {
-      if (this.cache[packId]) {
-        this.activePack = packId
-        this.status = 'ready'
-        this.error = ''
-        this.bindToGpu(this.cache[packId])
-        return this.cache[packId]
+      const ui = useUiStore()
+      if (ui.page === 'global' && !isGlobalDemoPack(packId)) {
+        throw new Error(`Global 禁止绑定非全球包 ${packId}`)
       }
-      this.status = 'loading'
-      this.error = ''
+      if (!this.cache[packId]) {
+        this.status = 'loading'
+        this.error = ''
+      }
       try {
         const frame = await this.loadIntoCache(packId)
-        this.activePack = packId
+        this.bindToGpu(frame, packId)
         this.status = 'ready'
-        this.bindToGpu(frame)
+        this.error = ''
         return frame
       } catch (e) {
         this.status = 'error'
@@ -110,14 +129,31 @@ export const useFieldStore = defineStore('field', {
       const ui = useUiStore()
       if (page === 'about') {
         if (seq !== this.pageSeq) return
-        mapRuntime.particles?.setFrame(this.cache[PAGE_PACK.global] ?? null)
+        const g = this.cache[PAGE_PACK.global]
+        if (g) {
+          try {
+            assertGlobalPack(PAGE_PACK.global, g)
+            mapRuntime.particles?.setFrame(g)
+          } catch {
+            mapRuntime.particles?.setFrame(null)
+          }
+        } else {
+          mapRuntime.particles?.setFrame(null)
+        }
         return
       }
       if (page === 'regional' && this.uploaded && this.cache.upload) {
         if (seq !== this.pageSeq) return
-        this.activePack = 'upload'
+        this.bindToGpu(this.cache.upload, 'upload')
         this.status = 'ready'
-        this.bindToGpu(this.cache.upload)
+        return
+      }
+      if (page === 'regional' && !this.uploaded) {
+        if (seq !== this.pageSeq) return
+        ui.setKind('ocean')
+        this.bindToGpu(null)
+        this.status = 'idle'
+        this.error = ''
         return
       }
       const kind = PAGE_DEFAULT_KIND[page]
@@ -135,20 +171,24 @@ export const useFieldStore = defineStore('field', {
       try {
         const frame = await this.loadIntoCache(pack)
         if (seq !== this.pageSeq) return
-        this.activePack = pack
+        this.bindToGpu(frame, pack)
         this.status = 'ready'
         this.markMissing(page, kind, false)
-        this.bindToGpu(frame)
       } catch (e) {
         if (seq !== this.pageSeq) return
         this.markMissing(page, kind, true)
         this.status = 'error'
         this.error = e instanceof Error ? e.message : String(e)
+        if (page === 'global') this.dropGlobalBind()
       }
     },
     async selectKind(kind: FieldKind) {
       const ui = useUiStore()
       if (ui.page === 'about') return
+      if (ui.page === 'regional' && !this.uploaded) {
+        ui.uploadOpen = true
+        return
+      }
       const prev = ui.kind
       const pack = packForKind(ui.page, kind)
       if (!pack) {
@@ -163,13 +203,21 @@ export const useFieldStore = defineStore('field', {
         this.markMissing(ui.page, kind, true)
         ui.setKind(prev)
         const keep = packForKind(ui.page, prev)
-        if (keep && this.cache[keep]) {
-          this.activePack = keep
-          this.status = 'ready'
-          this.bindToGpu(this.cache[keep])
+        const keepFrame = keep ? this.cache[keep] : undefined
+        if (keep && keepFrame) {
+          try {
+            this.bindToGpu(keepFrame, keep)
+            this.status = 'ready'
+            this.error = ''
+          } catch {
+            this.status = 'error'
+            this.error = e instanceof Error ? e.message : String(e)
+            if (ui.page === 'global') this.dropGlobalBind()
+          }
         } else {
           this.error = e instanceof Error ? e.message : String(e)
           this.status = 'error'
+          if (ui.page === 'global') this.dropGlobalBind()
         }
       }
     },
@@ -191,7 +239,13 @@ export const useFieldStore = defineStore('field', {
             try {
               this.cache[id] = await loadDemo(id)
             } catch {
-              /* 预热失败不打断演示 */
+              if (isGlobalDemoPack(id)) {
+                const kind = inferKind({
+                  packId: id,
+                  meta: { source: 'demo', vars: [], units: '' },
+                })
+                this.markMissing('global', kind, true)
+              }
             }
           }
         }
@@ -207,11 +261,10 @@ export const useFieldStore = defineStore('field', {
             this.ncStatus = s
           }),
         )
+        this.bindToGpu(frame, 'upload')
         this.cache.upload = frame
         this.uploaded = true
-        this.activePack = 'upload'
         this.status = 'ready'
-        this.bindToGpu(frame)
         this.ncStatus = 'done'
       } catch (e) {
         const err = e as NcUploadError

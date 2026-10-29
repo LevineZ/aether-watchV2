@@ -22,6 +22,8 @@
     "fill": 9999,
     "rowOrder": "south-north",
     "endian": "le",
-    "dtype": "float32"
+    "dtype": "float32",
+    "demo": true,
+    "note": "DEMO rain patches: Gulf of Mexico / Indonesia. Not live radar."
   }
 }

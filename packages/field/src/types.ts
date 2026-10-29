@@ -7,6 +7,9 @@ export type BBox = [west: number, south: number, east: number, north: number]
 /** 四种场：样式由 kind 决定，禁止一套青点换标签。 */
 export type FieldKind = 'wind' | 'ocean' | 'temp' | 'precip'
 
+/** 气温色阶 50→−40（shader 0–1 映射此窗）。 */
+export const TEMP_SCALAR_RANGE: [number, number] = [-40, 50]
+
 export type FieldFrame = {
   nx: number
   ny: number
@@ -19,12 +22,15 @@ export type FieldFrame = {
   /** 1=ocean/valid, 0=land/invalid */
   mask?: Uint8Array
   kind?: FieldKind
-  meta: {
-    source: FieldSource
-    vars: string[]
-    units: string
-    fill?: number
-  }
+    meta: {
+      source: FieldSource
+      vars: string[]
+      units: string
+      fill?: number
+      /** DEMO 标：演示雨斑等，非实况。 */
+      demo?: boolean
+      note?: string
+    }
 }
 
 export type DemoPackId =
@@ -77,7 +83,7 @@ export const MAX_NC_BYTES = 100 * 1024 * 1024
 
 export const PAGE_PACK: Record<PageId, DemoPackId> = {
   global: 'global/wind',
-  desk: 'china/wind',
+  desk: 'global/wind',
   regional: 'regional/currents',
 }
 
@@ -89,7 +95,7 @@ export const PAGE_DEFAULT_KIND: Record<PageId, FieldKind> = {
 
 /**
  * 页 × 要素 → DEMO 包。缺包返回 null（灰芯片 / 404），禁止跨页回退。
- * Global 只绑 global/* 全球窗；Desk 只用 china/*；Desk 洋流无近岸包。
+ * Global 只绑 global/* 全球窗。Desk 相机是东亚窗，场绑全球包铺满视口，禁止再裁 china 矩形。
  */
 export const PAGE_KIND_PACK: Record<PageId, Record<FieldKind, DemoPackId | null>> = {
   global: {
@@ -99,10 +105,10 @@ export const PAGE_KIND_PACK: Record<PageId, Record<FieldKind, DemoPackId | null>
     precip: 'global/precip',
   },
   desk: {
-    wind: 'china/wind',
-    ocean: null,
-    temp: 'china/temp',
-    precip: 'china/precip',
+    wind: 'global/wind',
+    ocean: 'global/ocean',
+    temp: 'global/temp',
+    precip: 'global/precip',
   },
   regional: {
     wind: 'china/wind',
@@ -112,15 +118,27 @@ export const PAGE_KIND_PACK: Record<PageId, Record<FieldKind, DemoPackId | null>
   },
 }
 
-export function packForKind(page: PageId, kind: FieldKind): DemoPackId | null {
-  return PAGE_KIND_PACK[page][kind]
+/** 仅 `global/*` 可绑全球 Tab。china / regional / forecast 一律不算全球包。 */
+export function isGlobalDemoPack(packId: string): boolean {
+  return packId.startsWith('global/')
 }
 
-/** Global 禁止区域 141×131 / regional/* / 东海窗。 */
+/**
+ * 全球 Tab 缺包或误配时返回 null（灰芯片），禁止把 regional/*、china/* 交出去。
+ */
+export function packForKind(page: PageId, kind: FieldKind): DemoPackId | null {
+  const pack = PAGE_KIND_PACK[page][kind]
+  if (!pack) return null
+  if (page === 'global' && !isGlobalDemoPack(pack)) return null
+  return pack
+}
+
+/** Global 禁止区域 141×131 / regional/* / china/* / 东海窗。 */
 export function isRegionalStamp(packId: string, frame?: Pick<FieldFrame, 'nx' | 'ny' | 'bbox'>): boolean {
-  if (packId.includes('regional')) return true
+  const id = packId.toLowerCase()
+  if (id.includes('regional') || id.includes('china') || id.startsWith('forecast/')) return true
   if (!frame) return false
-  if (frame.nx === 141 && frame.ny === 131) return true
+  if (frame.nx === 141 || frame.ny === 131) return true
   const [w, s, e, n] = frame.bbox
   const lonSpan = e - w
   const latSpan = n - s
@@ -130,12 +148,15 @@ export function isRegionalStamp(packId: string, frame?: Pick<FieldFrame, 'nx' | 
 }
 
 export function assertGlobalPack(packId: string, frame: Pick<FieldFrame, 'nx' | 'ny' | 'bbox'>): void {
-  if (isRegionalStamp(packId, frame)) {
+  if (!isGlobalDemoPack(packId) || isRegionalStamp(packId, frame)) {
     throw new Error(`Global 禁止绑定区域包 ${packId}（${frame.nx}×${frame.ny}）`)
   }
   const lonSpan = frame.bbox[2] - frame.bbox[0]
-  if (lonSpan < 300 || frame.nx * frame.ny < 200_000) {
-    throw new Error(`Global 包须为全球窗 ~721×361，收到 ${packId} ${frame.nx}×${frame.ny} span=${lonSpan}`)
+  const latSpan = frame.bbox[3] - frame.bbox[1]
+  if (lonSpan < 300 || latSpan < 140 || frame.nx * frame.ny < 200_000) {
+    throw new Error(
+      `Global 包须为全球窗 ~721×361，收到 ${packId} ${frame.nx}×${frame.ny} span=${lonSpan}×${latSpan}`,
+    )
   }
 }
 
